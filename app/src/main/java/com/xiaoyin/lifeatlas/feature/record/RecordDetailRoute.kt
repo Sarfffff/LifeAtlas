@@ -29,6 +29,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun RecordDetailRoute(
     onBack: () -> Unit,
+    onEdit: (Long) -> Unit,
     onDeleted: () -> Unit,
     viewModel: RecordDetailViewModel = viewModel()
 ) {
@@ -57,8 +58,13 @@ fun RecordDetailRoute(
             OutlinedButton(onClick = onBack) {
                 Text("返回")
             }
-            Button(onClick = viewModel::deleteRecord, enabled = record != null) {
-                Text("删除")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { record?.let { onEdit(it.id) } }, enabled = record != null) {
+                    Text("编辑")
+                }
+                Button(onClick = viewModel::deleteRecord, enabled = record != null) {
+                    Text("删除")
+                }
             }
         }
 
@@ -98,4 +104,3 @@ private fun Long.formatDateTime(): String {
         .atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
 }
-

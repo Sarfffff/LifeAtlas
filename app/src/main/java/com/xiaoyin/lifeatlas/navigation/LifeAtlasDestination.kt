@@ -25,6 +25,13 @@ sealed class LifeAtlasDestination(
 
         fun createRoute(recordId: Long): String = "record_detail/$recordId"
     }
+
+    data object EditRecord {
+        const val route = "edit_record/{recordId}"
+        const val recordIdArg = "recordId"
+
+        fun createRoute(recordId: Long): String = "edit_record/$recordId"
+    }
 }
 
 val topLevelDestinations = listOf(

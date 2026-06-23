@@ -18,6 +18,7 @@ import androidx.navigation.NavType
 import com.xiaoyin.lifeatlas.feature.home.HomeRoute
 import com.xiaoyin.lifeatlas.feature.map.MapRoute
 import com.xiaoyin.lifeatlas.feature.record.AddRecordRoute
+import com.xiaoyin.lifeatlas.feature.record.EditRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.RecordDetailRoute
 import com.xiaoyin.lifeatlas.feature.settings.SettingsRoute
 import com.xiaoyin.lifeatlas.feature.timeline.TimelineRoute
@@ -92,11 +93,32 @@ fun LifeAtlasNavHost() {
             ) {
                 RecordDetailRoute(
                     onBack = { navController.popBackStack() },
+                    onEdit = { recordId ->
+                        navController.navigate(LifeAtlasDestination.EditRecord.createRoute(recordId))
+                    },
                     onDeleted = {
                         navController.navigate(LifeAtlasDestination.Timeline.route) {
                             popUpTo(LifeAtlasDestination.Timeline.route) {
                                 inclusive = false
                             }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+            composable(
+                route = LifeAtlasDestination.EditRecord.route,
+                arguments = listOf(
+                    navArgument(LifeAtlasDestination.EditRecord.recordIdArg) {
+                        type = NavType.LongType
+                    }
+                )
+            ) {
+                EditRecordRoute(
+                    onBack = { navController.popBackStack() },
+                    onSaved = { recordId ->
+                        navController.popBackStack()
+                        navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId)) {
                             launchSingleTop = true
                         }
                     }
