@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
+import com.xiaoyin.lifeatlas.core.model.Tag
 import com.xiaoyin.lifeatlas.data.repository.RepositoryProvider
 import com.xiaoyin.lifeatlas.navigation.LifeAtlasDestination
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 data class RecordDetailUiState(
     val record: MemoryRecord? = null,
     val photos: List<Photo> = emptyList(),
+    val tags: List<Tag> = emptyList(),
     val isDeleting: Boolean = false,
     val deleted: Boolean = false
 )
@@ -34,9 +36,10 @@ class RecordDetailViewModel(
 
     val uiState: StateFlow<RecordDetailUiState> = combine(
         repository.observeRecord(recordId),
-        repository.observePhotos(recordId)
-    ) { record, photos ->
-        RecordDetailUiState(record = record, photos = photos)
+        repository.observePhotos(recordId),
+        repository.observeTags(recordId)
+    ) { record, photos, tags ->
+        RecordDetailUiState(record = record, photos = photos, tags = tags)
     }
         .stateIn(
             scope = viewModelScope,

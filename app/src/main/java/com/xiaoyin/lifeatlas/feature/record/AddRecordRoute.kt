@@ -105,6 +105,14 @@ fun AddRecordRoute(
             valueRange = 1f..5f,
             steps = 3
         )
+        OutlinedTextField(
+            value = uiState.tagsText,
+            onValueChange = viewModel::onTagsTextChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("标签") },
+            placeholder = { Text("用逗号分隔，例如：旅行，家人") },
+            singleLine = true
+        )
         Button(
             onClick = {
                 photoPicker.launch(

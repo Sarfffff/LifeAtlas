@@ -17,6 +17,7 @@ data class AddRecordUiState(
     val locationName: String = "",
     val mood: String = "",
     val importance: Float = 3f,
+    val tagsText: String = "",
     val photoUris: List<String> = emptyList(),
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
@@ -56,6 +57,10 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(importance = value) }
     }
 
+    fun onTagsTextChange(value: String) {
+        _uiState.update { it.copy(tagsText = value) }
+    }
+
     fun onPhotosSelected(uris: List<String>) {
         _uiState.update { current ->
             current.copy(photoUris = (current.photoUris + uris).distinct())
@@ -93,7 +98,8 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
                     createdAt = now,
                     updatedAt = now
                 ),
-                photoUris = state.photoUris
+                photoUris = state.photoUris,
+                tagNames = state.tagsText.toTagNames()
             )
 
             _uiState.update {
@@ -108,4 +114,11 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
     fun onSavedHandled() {
         _uiState.update { it.copy(savedRecordId = null) }
     }
+}
+
+private fun String.toTagNames(): List<String> {
+    return split(",", "，")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
 }

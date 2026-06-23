@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
+import com.xiaoyin.lifeatlas.core.model.Tag
 import coil.compose.AsyncImage
 import java.time.Instant
 import java.time.ZoneId
@@ -84,7 +86,7 @@ fun RecordDetailRoute(
         if (record == null) {
             Text(text = "记录不存在或已删除", style = MaterialTheme.typography.bodyLarge)
         } else {
-            RecordDetailContent(record = record, photos = uiState.photos)
+            RecordDetailContent(record = record, photos = uiState.photos, tags = uiState.tags)
         }
     }
 
@@ -113,7 +115,7 @@ fun RecordDetailRoute(
 }
 
 @Composable
-private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>) {
+private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags: List<Tag>) {
     Text(
         text = record.title,
         style = MaterialTheme.typography.headlineMedium,
@@ -131,6 +133,16 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>) {
         Text(text = "心情：$it", style = MaterialTheme.typography.bodyMedium)
     }
     Text(text = "重要程度：${record.importance}", style = MaterialTheme.typography.bodyMedium)
+    if (tags.isNotEmpty()) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(tags) { tag ->
+                AssistChip(
+                    onClick = { },
+                    label = { Text(tag.name) }
+                )
+            }
+        }
+    }
     if (photos.isNotEmpty()) {
         Text(text = "照片", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

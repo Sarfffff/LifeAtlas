@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.data.repository.RepositoryProvider
 import com.xiaoyin.lifeatlas.navigation.LifeAtlasDestination
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -20,6 +21,7 @@ data class EditRecordUiState(
     val locationName: String = "",
     val mood: String = "",
     val importance: Float = 3f,
+    val tagsText: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
@@ -41,10 +43,15 @@ class EditRecordViewModel(
 
     private val _uiState = MutableStateFlow(EditRecordUiState(recordId = recordId))
     val uiState: StateFlow<EditRecordUiState> = _uiState
+    private var hasLoadedInitialRecord = false
 
     init {
         viewModelScope.launch {
-            repository.observeRecord(recordId).collect { record ->
+            combine(
+                repository.observeRecord(recordId),
+                repository.observeTags(recordId)
+            ) { record, tags -> record to tags }
+                .collect { (record, tags) ->
                 if (record == null) {
                     _uiState.update {
                         it.copy(
@@ -52,8 +59,9 @@ class EditRecordViewModel(
                             errorMessage = "记录不存在或已删除"
                         )
                     }
-                } else if (!_uiState.value.isSaving) {
-                    _uiState.value = record.toUiState()
+                } else if (!hasLoadedInitialRecord) {
+                    _uiState.value = record.toUiState(tags.joinToString("，") { it.name })
+                    hasLoadedInitialRecord = true
                 }
             }
         }
@@ -83,6 +91,10 @@ class EditRecordViewModel(
         _uiState.update { it.copy(importance = value) }
     }
 
+    fun onTagsTextChange(value: String) {
+        _uiState.update { it.copy(tagsText = value) }
+    }
+
     fun saveRecord() {
         val state = _uiState.value
         if (state.title.isBlank()) {
@@ -105,7 +117,8 @@ class EditRecordViewModel(
                     importance = state.importance.toInt(),
                     createdAt = state.createdAt,
                     updatedAt = System.currentTimeMillis()
-                )
+                ),
+                tagNames = state.tagsText.toTagNames()
             )
             _uiState.update {
                 it.copy(
@@ -121,7 +134,7 @@ class EditRecordViewModel(
     }
 }
 
-private fun MemoryRecord.toUiState(): EditRecordUiState {
+private fun MemoryRecord.toUiState(tagsText: String): EditRecordUiState {
     return EditRecordUiState(
         recordId = id,
         title = title,
@@ -130,8 +143,15 @@ private fun MemoryRecord.toUiState(): EditRecordUiState {
         locationName = locationName.orEmpty(),
         mood = mood.orEmpty(),
         importance = importance.toFloat(),
+        tagsText = tagsText,
         createdAt = createdAt,
         isLoading = false
     )
 }
 
+private fun String.toTagNames(): List<String> {
+    return split(",", "，")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+}

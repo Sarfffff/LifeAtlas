@@ -2,10 +2,14 @@ package com.xiaoyin.lifeatlas.data.repository
 
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
+import com.xiaoyin.lifeatlas.core.model.Tag
 import com.xiaoyin.lifeatlas.data.dao.MemoryRecordDao
 import com.xiaoyin.lifeatlas.data.dao.PhotoDao
+import com.xiaoyin.lifeatlas.data.dao.TagDao
+import com.xiaoyin.lifeatlas.data.entity.MemoryTagCrossRefEntity
 import com.xiaoyin.lifeatlas.data.entity.MemoryRecordEntity
 import com.xiaoyin.lifeatlas.data.entity.PhotoEntity
+import com.xiaoyin.lifeatlas.data.entity.TagEntity
 import com.xiaoyin.lifeatlas.data.mapper.toEntity
 import com.xiaoyin.lifeatlas.data.mapper.toModel
 import kotlinx.coroutines.flow.Flow
@@ -13,7 +17,8 @@ import kotlinx.coroutines.flow.map
 
 class MemoryRepository(
     private val memoryRecordDao: MemoryRecordDao,
-    private val photoDao: PhotoDao
+    private val photoDao: PhotoDao,
+    private val tagDao: TagDao
 ) {
     fun observeAllRecords(): Flow<List<MemoryRecord>> {
         return memoryRecordDao.observeAll().map { records ->
@@ -37,6 +42,12 @@ class MemoryRepository(
         }
     }
 
+    fun observeTags(recordId: Long): Flow<List<Tag>> {
+        return tagDao.observeTagsForRecord(recordId).map { tags ->
+            tags.map { it.toModel() }
+        }
+    }
+
     suspend fun addRecord(record: MemoryRecord): Long {
         return memoryRecordDao.insert(record.toEntity())
     }
@@ -47,8 +58,20 @@ class MemoryRepository(
         return recordId
     }
 
+    suspend fun addRecord(record: MemoryRecord, photoUris: List<String>, tagNames: List<String>): Long {
+        val recordId = memoryRecordDao.insert(record.toEntity())
+        addPhotos(recordId, photoUris)
+        replaceTags(recordId, tagNames)
+        return recordId
+    }
+
     suspend fun updateRecord(record: MemoryRecord) {
         memoryRecordDao.update(record.toEntity())
+    }
+
+    suspend fun updateRecord(record: MemoryRecord, tagNames: List<String>) {
+        memoryRecordDao.update(record.toEntity())
+        replaceTags(record.id, tagNames)
     }
 
     suspend fun deleteRecord(id: Long) {
@@ -71,6 +94,30 @@ class MemoryRepository(
                     longitude = null,
                     createdAt = now
                 )
+            }
+        )
+    }
+
+    private suspend fun replaceTags(recordId: Long, tagNames: List<String>) {
+        tagDao.clearTagsForRecord(recordId)
+        val normalizedNames = tagNames.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (normalizedNames.isEmpty()) return
+
+        val now = System.currentTimeMillis()
+        val tagIds = normalizedNames.map { name ->
+            val existing = tagDao.findByName(name)
+            existing?.id ?: tagDao.insertTag(
+                TagEntity(
+                    name = name,
+                    color = null,
+                    createdAt = now
+                )
+            )
+        }
+
+        tagDao.insertCrossRefs(
+            tagIds.map { tagId ->
+                MemoryTagCrossRefEntity(recordId = recordId, tagId = tagId)
             }
         )
     }
