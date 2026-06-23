@@ -1,6 +1,7 @@
 package com.xiaoyin.lifeatlas.feature.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,7 +27,10 @@ import com.xiaoyin.lifeatlas.core.time.formatDate
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 
 @Composable
-fun HomeRoute(viewModel: HomeViewModel = viewModel()) {
+fun HomeRoute(
+    onLatestRecordClick: (Long) -> Unit,
+    viewModel: HomeViewModel = viewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
 
     Column(
@@ -63,7 +67,10 @@ fun HomeRoute(viewModel: HomeViewModel = viewModel()) {
             body = "当前已有 ${uiState.locatedRecordCount} 条记录填写了坐标，可用于后续生成地图 marker。"
         )
 
-        LatestRecordCard(record = uiState.latestRecord)
+        LatestRecordCard(
+            record = uiState.latestRecord,
+            onClick = { recordId -> onLatestRecordClick(recordId) }
+        )
     }
 }
 
@@ -82,8 +89,9 @@ private fun StatCard(title: String, value: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun SectionCard(title: String, body: String) {
+private fun SectionCard(title: String, body: String, modifier: Modifier = Modifier) {
     Card(
+        modifier = modifier,
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -96,7 +104,7 @@ private fun SectionCard(title: String, body: String) {
 }
 
 @Composable
-private fun LatestRecordCard(record: MemoryRecord?) {
+private fun LatestRecordCard(record: MemoryRecord?, onClick: (Long) -> Unit) {
     SectionCard(
         title = "最近记录",
         body = if (record == null) {
@@ -107,6 +115,11 @@ private fun LatestRecordCard(record: MemoryRecord?) {
                 record.locationName,
                 record.recordTime.formatDate()
             ).joinToString(" | ")
+        },
+        modifier = if (record == null) {
+            Modifier
+        } else {
+            Modifier.clickable { onClick(record.id) }
         }
     )
 }

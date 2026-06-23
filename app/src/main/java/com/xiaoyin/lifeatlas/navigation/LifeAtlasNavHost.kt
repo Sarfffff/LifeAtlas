@@ -61,7 +61,13 @@ fun LifeAtlasNavHost() {
             startDestination = LifeAtlasDestination.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(LifeAtlasDestination.Home.route) { HomeRoute() }
+            composable(LifeAtlasDestination.Home.route) {
+                HomeRoute(
+                    onLatestRecordClick = { recordId ->
+                        navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
+                    }
+                )
+            }
             composable(LifeAtlasDestination.Timeline.route) {
                 TimelineRoute(
                     onRecordClick = { recordId ->
