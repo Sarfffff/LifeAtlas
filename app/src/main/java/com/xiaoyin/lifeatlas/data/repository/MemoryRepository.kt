@@ -54,6 +54,10 @@ class MemoryRepository(
         }
     }
 
+    fun observePhotoCount(): Flow<Int> {
+        return photoDao.observePhotoCount()
+    }
+
     fun observeTags(recordId: Long): Flow<List<Tag>> {
         return tagDao.observeTagsForRecord(recordId).map { tags ->
             tags.map { it.toModel() }

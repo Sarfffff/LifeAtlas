@@ -15,13 +15,20 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xiaoyin.lifeatlas.core.model.MemoryRecord
+import com.xiaoyin.lifeatlas.core.time.formatDate
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 
 @Composable
-fun HomeRoute() {
+fun HomeRoute(viewModel: HomeViewModel = viewModel()) {
+    val uiState by viewModel.uiState.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -46,20 +53,17 @@ fun HomeRoute() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatCard(title = "记录", value = "0", modifier = Modifier.weight(1f))
-            StatCard(title = "照片", value = "0", modifier = Modifier.weight(1f))
-            StatCard(title = "城市", value = "0", modifier = Modifier.weight(1f))
+            StatCard(title = "记录", value = uiState.recordCount.toString(), modifier = Modifier.weight(1f))
+            StatCard(title = "照片", value = uiState.photoCount.toString(), modifier = Modifier.weight(1f))
+            StatCard(title = "标签", value = uiState.tagCount.toString(), modifier = Modifier.weight(1f))
         }
 
         SectionCard(
-            title = "当前开发目标",
-            body = "先完成新增文字记录、本地保存、时间轴展示和详情查看。地图、照片和标签会在闭环稳定后接入。"
+            title = "地图点位",
+            body = "当前已有 ${uiState.locatedRecordCount} 条记录填写了坐标，可用于后续生成地图 marker。"
         )
 
-        SectionCard(
-            title = "最近记录",
-            body = "暂无记录。下一步接入 Room 后，这里会展示最近一条人生节点。"
-        )
+        LatestRecordCard(record = uiState.latestRecord)
     }
 }
 
@@ -91,3 +95,18 @@ private fun SectionCard(title: String, body: String) {
     }
 }
 
+@Composable
+private fun LatestRecordCard(record: MemoryRecord?) {
+    SectionCard(
+        title = "最近记录",
+        body = if (record == null) {
+            "暂无记录。新增第一条人生节点后，这里会显示最近发生的记录。"
+        } else {
+            listOfNotNull(
+                record.title,
+                record.locationName,
+                record.recordTime.formatDate()
+            ).joinToString(" | ")
+        }
+    )
+}
