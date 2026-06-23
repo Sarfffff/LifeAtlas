@@ -9,7 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -22,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
+import com.xiaoyin.lifeatlas.core.model.Photo
+import coil.compose.AsyncImage
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -71,13 +78,13 @@ fun RecordDetailRoute(
         if (record == null) {
             Text(text = "记录不存在或已删除", style = MaterialTheme.typography.bodyLarge)
         } else {
-            RecordDetailContent(record = record)
+            RecordDetailContent(record = record, photos = uiState.photos)
         }
     }
 }
 
 @Composable
-private fun RecordDetailContent(record: MemoryRecord) {
+private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>) {
     Text(
         text = record.title,
         style = MaterialTheme.typography.headlineMedium,
@@ -95,6 +102,25 @@ private fun RecordDetailContent(record: MemoryRecord) {
         Text(text = "心情：$it", style = MaterialTheme.typography.bodyMedium)
     }
     Text(text = "重要程度：${record.importance}", style = MaterialTheme.typography.bodyMedium)
+    if (photos.isNotEmpty()) {
+        Text(text = "照片", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(photos) { photo ->
+                Card(
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    AsyncImage(
+                        model = photo.originalUri,
+                        contentDescription = "记录照片",
+                        modifier = Modifier
+                            .height(160.dp)
+                            .fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
     Spacer(modifier = Modifier.height(8.dp))
     Text(text = record.content.ifBlank { "暂无正文" }, style = MaterialTheme.typography.bodyLarge)
 }

@@ -1,8 +1,12 @@
 package com.xiaoyin.lifeatlas.feature.record
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.time.formatDate
 import androidx.compose.material3.rememberDatePickerState
+import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +43,11 @@ fun AddRecordRoute(
     val uiState by viewModel.uiState.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = uiState.recordTime)
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        viewModel.onPhotosSelected(uris.map { it.toString() })
+    }
 
     LaunchedEffect(uiState.savedRecordId) {
         if (uiState.savedRecordId != null) {
@@ -95,6 +105,35 @@ fun AddRecordRoute(
             valueRange = 1f..5f,
             steps = 3
         )
+        Button(
+            onClick = {
+                photoPicker.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("选择照片（${uiState.photoUris.size}）")
+        }
+        if (uiState.photoUris.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                uiState.photoUris.forEach { uri ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AsyncImage(
+                            model = uri,
+                            contentDescription = "已选择照片",
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { viewModel.removePhoto(uri) }) {
+                            Text("移除")
+                        }
+                    }
+                }
+            }
+        }
         uiState.errorMessage?.let { message ->
             Text(
                 text = message,

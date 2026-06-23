@@ -1,15 +1,19 @@
 package com.xiaoyin.lifeatlas.data.repository
 
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
+import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.data.dao.MemoryRecordDao
+import com.xiaoyin.lifeatlas.data.dao.PhotoDao
 import com.xiaoyin.lifeatlas.data.entity.MemoryRecordEntity
+import com.xiaoyin.lifeatlas.data.entity.PhotoEntity
 import com.xiaoyin.lifeatlas.data.mapper.toEntity
 import com.xiaoyin.lifeatlas.data.mapper.toModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class MemoryRepository(
-    private val memoryRecordDao: MemoryRecordDao
+    private val memoryRecordDao: MemoryRecordDao,
+    private val photoDao: PhotoDao
 ) {
     fun observeAllRecords(): Flow<List<MemoryRecord>> {
         return memoryRecordDao.observeAll().map { records ->
@@ -21,8 +25,20 @@ class MemoryRepository(
         return memoryRecordDao.observeById(id).map { it?.toModel() }
     }
 
+    fun observePhotos(recordId: Long): Flow<List<Photo>> {
+        return photoDao.observeByRecordId(recordId).map { photos ->
+            photos.map { it.toModel() }
+        }
+    }
+
     suspend fun addRecord(record: MemoryRecord): Long {
         return memoryRecordDao.insert(record.toEntity())
+    }
+
+    suspend fun addRecord(record: MemoryRecord, photoUris: List<String>): Long {
+        val recordId = memoryRecordDao.insert(record.toEntity())
+        addPhotos(recordId, photoUris)
+        return recordId
     }
 
     suspend fun updateRecord(record: MemoryRecord) {
@@ -31,6 +47,26 @@ class MemoryRepository(
 
     suspend fun deleteRecord(id: Long) {
         memoryRecordDao.deleteById(id)
+    }
+
+    private suspend fun addPhotos(recordId: Long, photoUris: List<String>) {
+        if (photoUris.isEmpty()) return
+
+        val now = System.currentTimeMillis()
+        photoDao.insertAll(
+            photoUris.distinct().map { uri ->
+                PhotoEntity(
+                    recordId = recordId,
+                    originalUri = uri,
+                    thumbnailPath = null,
+                    compressedPath = null,
+                    takenAt = null,
+                    latitude = null,
+                    longitude = null,
+                    createdAt = now
+                )
+            }
+        )
     }
 
     suspend fun seedIfEmpty() {
@@ -67,4 +103,3 @@ class MemoryRepository(
         )
     }
 }
-

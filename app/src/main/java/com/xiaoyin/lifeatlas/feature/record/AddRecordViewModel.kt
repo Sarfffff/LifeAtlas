@@ -17,6 +17,7 @@ data class AddRecordUiState(
     val locationName: String = "",
     val mood: String = "",
     val importance: Float = 3f,
+    val photoUris: List<String> = emptyList(),
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
     val savedRecordId: Long? = null
@@ -55,6 +56,18 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(importance = value) }
     }
 
+    fun onPhotosSelected(uris: List<String>) {
+        _uiState.update { current ->
+            current.copy(photoUris = (current.photoUris + uris).distinct())
+        }
+    }
+
+    fun removePhoto(uri: String) {
+        _uiState.update { current ->
+            current.copy(photoUris = current.photoUris.filterNot { it == uri })
+        }
+    }
+
     fun saveRecord() {
         val state = _uiState.value
         if (state.title.isBlank()) {
@@ -79,7 +92,8 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
                     importance = state.importance.toInt(),
                     createdAt = now,
                     updatedAt = now
-                )
+                ),
+                photoUris = state.photoUris
             )
 
             _uiState.update {
