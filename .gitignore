@@ -1,3 +1,6 @@
 .agents/
 .codex/
-
+local.properties
+.gradle/
+build/
+app/build/

@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.LifeAtlas" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#2F6F68</item>
+        <item name="android:navigationBarColor">#FBFCFA</item>
+        <item name="android:statusBarColor">#FBFCFA</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>
+

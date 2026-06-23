@@ -1,0 +1,30 @@
+package com.xiaoyin.lifeatlas.navigation
+
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddCircle
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Timeline
+import androidx.compose.ui.graphics.vector.ImageVector
+
+sealed class LifeAtlasDestination(
+    val route: String,
+    val label: String,
+    val icon: ImageVector
+) {
+    data object Home : LifeAtlasDestination("home", "首页", Icons.Outlined.Home)
+    data object Timeline : LifeAtlasDestination("timeline", "时间轴", Icons.Outlined.Timeline)
+    data object AddRecord : LifeAtlasDestination("add_record", "新增", Icons.Outlined.AddCircle)
+    data object Map : LifeAtlasDestination("map", "地图", Icons.Outlined.Map)
+    data object Settings : LifeAtlasDestination("settings", "设置", Icons.Outlined.Settings)
+}
+
+val topLevelDestinations = listOf(
+    LifeAtlasDestination.Home,
+    LifeAtlasDestination.Timeline,
+    LifeAtlasDestination.AddRecord,
+    LifeAtlasDestination.Map,
+    LifeAtlasDestination.Settings
+)
+
