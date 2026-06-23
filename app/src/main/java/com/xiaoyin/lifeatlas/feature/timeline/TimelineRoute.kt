@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +17,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -54,6 +57,11 @@ fun TimelineRoute(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
+        TimelineSearchBar(
+            query = uiState.searchQuery,
+            onQueryChange = viewModel::onSearchQueryChange,
+            onClear = viewModel::clearSearchQuery
+        )
         TimelineTagFilter(
             tags = uiState.tags,
             selectedTagId = uiState.selectedTagId,
@@ -62,7 +70,7 @@ fun TimelineRoute(
 
         if (records.isEmpty()) {
             Text(
-                text = if (uiState.selectedTagId == null) "暂无记录" else "当前标签下暂无记录",
+                text = uiState.emptyStateText(),
                 style = MaterialTheme.typography.bodyLarge
             )
         } else {
@@ -80,6 +88,32 @@ fun TimelineRoute(
                         onClick = { onRecordClick(record.id) }
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            label = { Text("搜索记录") },
+            placeholder = { Text("标题、正文、地点、心情") },
+            singleLine = true
+        )
+        if (query.isNotBlank()) {
+            TextButton(onClick = onClear) {
+                Text("清空")
             }
         }
     }
@@ -151,4 +185,11 @@ private fun Long.formatMonth(): String {
     return Instant.ofEpochMilli(this)
         .atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("yyyy 年 M 月"))
+}
+
+private fun TimelineUiState.emptyStateText(): String {
+    if (searchQuery.isNotBlank() && selectedTagId != null) return "当前标签下没有匹配的记录"
+    if (searchQuery.isNotBlank()) return "没有匹配的记录"
+    if (selectedTagId != null) return "当前标签下暂无记录"
+    return "暂无记录"
 }

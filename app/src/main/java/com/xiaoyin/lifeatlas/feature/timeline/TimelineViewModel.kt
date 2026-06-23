@@ -20,13 +20,15 @@ data class TimelineUiState(
     val records: List<MemoryRecord> = emptyList(),
     val firstPhotosByRecordId: Map<Long, Photo> = emptyMap(),
     val tags: List<Tag> = emptyList(),
-    val selectedTagId: Long? = null
+    val selectedTagId: Long? = null,
+    val searchQuery: String = ""
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class TimelineViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = RepositoryProvider.memoryRepository(application)
     private val selectedTagId = MutableStateFlow<Long?>(null)
+    private val searchQuery = MutableStateFlow("")
     private val recordsFlow = selectedTagId.flatMapLatest { tagId ->
         if (tagId == null) {
             repository.observeAllRecords()
@@ -39,13 +41,15 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
         recordsFlow,
         repository.observeFirstPhotosByRecord(),
         repository.observeAllTags(),
-        selectedTagId
-    ) { records, firstPhotos, tags, activeTagId ->
+        selectedTagId,
+        searchQuery
+    ) { records, firstPhotos, tags, activeTagId, query ->
         TimelineUiState(
-            records = records,
+            records = records.filterByQuery(query),
             firstPhotosByRecordId = firstPhotos,
             tags = tags,
-            selectedTagId = activeTagId
+            selectedTagId = activeTagId,
+            searchQuery = query
         )
     }
         .stateIn(
@@ -62,5 +66,27 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
 
     fun selectTag(tagId: Long?) {
         selectedTagId.update { tagId }
+    }
+
+    fun onSearchQueryChange(value: String) {
+        searchQuery.update { value }
+    }
+
+    fun clearSearchQuery() {
+        searchQuery.update { "" }
+    }
+}
+
+private fun List<MemoryRecord>.filterByQuery(query: String): List<MemoryRecord> {
+    val normalizedQuery = query.trim()
+    if (normalizedQuery.isEmpty()) return this
+
+    return filter { record ->
+        listOf(
+            record.title,
+            record.content,
+            record.locationName.orEmpty(),
+            record.mood.orEmpty()
+        ).any { field -> field.contains(normalizedQuery, ignoreCase = true) }
     }
 }

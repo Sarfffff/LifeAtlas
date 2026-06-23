@@ -1,5 +1,6 @@
 .agents/
 .codex/
+.idea/
 local.properties
 .gradle/
 build/
