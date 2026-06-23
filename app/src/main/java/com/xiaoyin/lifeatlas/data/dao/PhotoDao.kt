@@ -12,6 +12,9 @@ interface PhotoDao {
     @Query("SELECT * FROM photos WHERE record_id = :recordId ORDER BY id ASC")
     fun observeByRecordId(recordId: Long): Flow<List<PhotoEntity>>
 
+    @Query("SELECT * FROM photos ORDER BY record_id ASC, id ASC")
+    suspend fun getAll(): List<PhotoEntity>
+
     @Query("SELECT * FROM photos WHERE id IN (SELECT MIN(id) FROM photos GROUP BY record_id) ORDER BY record_id ASC")
     fun observeFirstPhotosByRecord(): Flow<List<PhotoEntity>>
 

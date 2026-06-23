@@ -15,6 +15,8 @@ data class AddRecordUiState(
     val content: String = "",
     val recordTime: Long = System.currentTimeMillis(),
     val locationName: String = "",
+    val latitudeText: String = "",
+    val longitudeText: String = "",
     val mood: String = "",
     val importance: Float = 3f,
     val tagsText: String = "",
@@ -49,6 +51,14 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(locationName = value) }
     }
 
+    fun onLatitudeChange(value: String) {
+        _uiState.update { it.copy(latitudeText = value, errorMessage = null) }
+    }
+
+    fun onLongitudeChange(value: String) {
+        _uiState.update { it.copy(longitudeText = value, errorMessage = null) }
+    }
+
     fun onMoodChange(value: String) {
         _uiState.update { it.copy(mood = value) }
     }
@@ -79,6 +89,11 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
             _uiState.update { it.copy(errorMessage = "请先填写标题") }
             return
         }
+        val coordinate = state.parseCoordinateOrNull()
+        if (coordinate == null && (state.latitudeText.isNotBlank() || state.longitudeText.isNotBlank())) {
+            _uiState.update { it.copy(errorMessage = "请填写有效经纬度，纬度范围 -90 到 90，经度范围 -180 到 180") }
+            return
+        }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
@@ -90,8 +105,8 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
                     title = state.title.trim(),
                     content = state.content.trim(),
                     recordTime = state.recordTime,
-                    latitude = null,
-                    longitude = null,
+                    latitude = coordinate?.latitude,
+                    longitude = coordinate?.longitude,
                     locationName = state.locationName.trim().ifBlank { null },
                     mood = state.mood.trim().ifBlank { null },
                     importance = state.importance.toInt(),
@@ -114,6 +129,17 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
     fun onSavedHandled() {
         _uiState.update { it.copy(savedRecordId = null) }
     }
+}
+
+private data class AddRecordCoordinate(val latitude: Double, val longitude: Double)
+
+private fun AddRecordUiState.parseCoordinateOrNull(): AddRecordCoordinate? {
+    val latitude = latitudeText.trim().takeIf { it.isNotBlank() }?.toDoubleOrNull()
+    val longitude = longitudeText.trim().takeIf { it.isNotBlank() }?.toDoubleOrNull()
+    if (latitude == null && longitude == null) return null
+    if (latitude == null || longitude == null) return null
+    if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
+    return AddRecordCoordinate(latitude = latitude, longitude = longitude)
 }
 
 private fun String.toTagNames(): List<String> {

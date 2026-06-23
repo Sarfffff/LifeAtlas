@@ -16,6 +16,15 @@ interface MemoryRecordDao {
 
     @Query(
         """
+        SELECT * FROM memory_records
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        ORDER BY record_time DESC
+        """
+    )
+    fun observeLocatedRecords(): Flow<List<MemoryRecordEntity>>
+
+    @Query(
+        """
         SELECT memory_records.* FROM memory_records
         INNER JOIN memory_tag_cross_ref ON memory_records.id = memory_tag_cross_ref.record_id
         WHERE memory_tag_cross_ref.tag_id = :tagId
@@ -29,6 +38,9 @@ interface MemoryRecordDao {
 
     @Query("SELECT COUNT(*) FROM memory_records")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM memory_records ORDER BY record_time DESC")
+    suspend fun getAll(): List<MemoryRecordEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(record: MemoryRecordEntity): Long

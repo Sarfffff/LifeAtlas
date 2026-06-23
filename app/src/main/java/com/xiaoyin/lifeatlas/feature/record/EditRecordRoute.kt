@@ -3,6 +3,7 @@ package com.xiaoyin.lifeatlas.feature.record
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -87,6 +88,27 @@ fun EditRecordRoute(
                 label = { Text("地点") },
                 singleLine = true
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = uiState.latitudeText,
+                    onValueChange = viewModel::onLatitudeChange,
+                    modifier = Modifier.weight(1f),
+                    label = { Text("纬度") },
+                    placeholder = { Text("30.5") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = uiState.longitudeText,
+                    onValueChange = viewModel::onLongitudeChange,
+                    modifier = Modifier.weight(1f),
+                    label = { Text("经度") },
+                    placeholder = { Text("114.3") },
+                    singleLine = true
+                )
+            }
             OutlinedTextField(
                 value = uiState.mood,
                 onValueChange = viewModel::onMoodChange,

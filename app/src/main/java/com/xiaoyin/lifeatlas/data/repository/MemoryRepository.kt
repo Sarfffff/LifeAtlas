@@ -26,6 +26,12 @@ class MemoryRepository(
         }
     }
 
+    fun observeLocatedRecords(): Flow<List<MemoryRecord>> {
+        return memoryRecordDao.observeLocatedRecords().map { records ->
+            records.map { it.toModel() }
+        }
+    }
+
     fun observeRecordsByTag(tagId: Long): Flow<List<MemoryRecord>> {
         return memoryRecordDao.observeByTag(tagId).map { records ->
             records.map { it.toModel() }

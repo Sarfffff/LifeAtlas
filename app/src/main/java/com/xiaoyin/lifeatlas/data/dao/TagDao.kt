@@ -13,6 +13,12 @@ interface TagDao {
     @Query("SELECT * FROM tags ORDER BY name ASC")
     fun observeAllTags(): Flow<List<TagEntity>>
 
+    @Query("SELECT * FROM tags ORDER BY name ASC")
+    suspend fun getAllTags(): List<TagEntity>
+
+    @Query("SELECT * FROM memory_tag_cross_ref ORDER BY record_id ASC, tag_id ASC")
+    suspend fun getAllCrossRefs(): List<MemoryTagCrossRefEntity>
+
     @Query(
         """
         SELECT tags.* FROM tags

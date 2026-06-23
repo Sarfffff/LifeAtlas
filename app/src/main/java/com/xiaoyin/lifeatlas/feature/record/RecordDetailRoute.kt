@@ -129,6 +129,12 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags:
     record.locationName?.let {
         Text(text = "地点：$it", style = MaterialTheme.typography.bodyMedium)
     }
+    if (record.latitude != null && record.longitude != null) {
+        Text(
+            text = "坐标：${record.latitude}, ${record.longitude}",
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
     record.mood?.let {
         Text(text = "心情：$it", style = MaterialTheme.typography.bodyMedium)
     }
