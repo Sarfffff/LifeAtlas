@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TagDao {
+    @Query("SELECT * FROM tags ORDER BY name ASC")
+    fun observeAllTags(): Flow<List<TagEntity>>
+
     @Query(
         """
         SELECT tags.* FROM tags
@@ -32,4 +35,3 @@ interface TagDao {
     @Query("DELETE FROM memory_tag_cross_ref WHERE record_id = :recordId")
     suspend fun clearTagsForRecord(recordId: Long)
 }
-

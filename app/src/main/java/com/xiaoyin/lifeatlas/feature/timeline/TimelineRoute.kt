@@ -8,7 +8,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -50,10 +54,15 @@ fun TimelineRoute(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
+        TimelineTagFilter(
+            tags = uiState.tags,
+            selectedTagId = uiState.selectedTagId,
+            onSelectTag = viewModel::selectTag
+        )
 
         if (records.isEmpty()) {
             Text(
-                text = "暂无记录",
+                text = if (uiState.selectedTagId == null) "暂无记录" else "当前标签下暂无记录",
                 style = MaterialTheme.typography.bodyLarge
             )
         } else {
@@ -72,6 +81,32 @@ fun TimelineRoute(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TimelineTagFilter(
+    tags: List<com.xiaoyin.lifeatlas.core.model.Tag>,
+    selectedTagId: Long?,
+    onSelectTag: (Long?) -> Unit
+) {
+    if (tags.isEmpty()) return
+
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            FilterChip(
+                selected = selectedTagId == null,
+                onClick = { onSelectTag(null) },
+                label = { Text("全部") }
+            )
+        }
+        items(tags) { tag ->
+            FilterChip(
+                selected = selectedTagId == tag.id,
+                onClick = { onSelectTag(tag.id) },
+                label = { Text(tag.name) }
+            )
         }
     }
 }

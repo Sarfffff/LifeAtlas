@@ -14,6 +14,16 @@ interface MemoryRecordDao {
     @Query("SELECT * FROM memory_records ORDER BY record_time DESC")
     fun observeAll(): Flow<List<MemoryRecordEntity>>
 
+    @Query(
+        """
+        SELECT memory_records.* FROM memory_records
+        INNER JOIN memory_tag_cross_ref ON memory_records.id = memory_tag_cross_ref.record_id
+        WHERE memory_tag_cross_ref.tag_id = :tagId
+        ORDER BY memory_records.record_time DESC
+        """
+    )
+    fun observeByTag(tagId: Long): Flow<List<MemoryRecordEntity>>
+
     @Query("SELECT * FROM memory_records WHERE id = :id LIMIT 1")
     fun observeById(id: Long): Flow<MemoryRecordEntity?>
 
@@ -35,4 +45,3 @@ interface MemoryRecordDao {
     @Query("DELETE FROM memory_records WHERE id = :id")
     suspend fun deleteById(id: Long)
 }
-
