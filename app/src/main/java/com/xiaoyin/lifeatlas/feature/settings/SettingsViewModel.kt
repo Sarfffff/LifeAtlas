@@ -14,7 +14,9 @@ import kotlinx.coroutines.withContext
 
 data class SettingsUiState(
     val isExporting: Boolean = false,
+    val isImporting: Boolean = false,
     val pendingExportJson: String? = null,
+    val pendingImportUri: Uri? = null,
     val message: String? = null
 )
 
@@ -67,5 +69,53 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun onExportLaunchHandled() {
         _uiState.update { it.copy(pendingExportJson = null) }
+    }
+
+    fun prepareImport(uri: Uri) {
+        _uiState.update {
+            it.copy(
+                pendingImportUri = uri,
+                message = "确认导入后，同 ID 的本地记录会被备份内容覆盖"
+            )
+        }
+    }
+
+    fun confirmImport() {
+        val uri = _uiState.value.pendingImportUri ?: return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isImporting = true, pendingImportUri = null, message = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val jsonText = getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
+                        input.bufferedReader(Charsets.UTF_8).readText()
+                    } ?: error("无法打开导入文件")
+                    exportService.importJson(jsonText)
+                }
+            }.onSuccess { result ->
+                _uiState.update {
+                    it.copy(
+                        isImporting = false,
+                        message = "导入完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签"
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isImporting = false,
+                        message = error.message ?: "导入失败"
+                    )
+                }
+            }
+        }
+    }
+
+    fun cancelImport() {
+        _uiState.update {
+            it.copy(
+                pendingImportUri = null,
+                message = null
+            )
+        }
     }
 }

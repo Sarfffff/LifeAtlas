@@ -36,6 +36,9 @@ interface TagDao {
     suspend fun insertTag(tag: TagEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTags(tags: List<TagEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCrossRefs(crossRefs: List<MemoryTagCrossRefEntity>)
 
     @Query("DELETE FROM memory_tag_cross_ref WHERE record_id = :recordId")

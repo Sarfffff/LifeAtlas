@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,6 +41,13 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
             viewModel.writeExport(uri)
         } else {
             viewModel.onExportLaunchHandled()
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.prepareImport(uri)
         }
     }
 
@@ -75,6 +84,18 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
                 }
             }
         )
+        SettingCard(
+            title = "数据导入",
+            body = "从岁迹 JSON 备份恢复记录、照片 URI、标签和关联关系。",
+            trailing = {
+                Button(
+                    onClick = { importLauncher.launch(arrayOf("application/json", "text/*")) },
+                    enabled = !uiState.isImporting
+                ) {
+                    Text(if (uiState.isImporting) "导入中" else "导入")
+                }
+            }
+        )
         uiState.message?.let { message ->
             Text(
                 text = message,
@@ -83,6 +104,24 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
             )
         }
         SettingCard(title = "关于岁迹", body = "岁迹 | 我的人生地图")
+    }
+
+    if (uiState.pendingImportUri != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelImport,
+            title = { Text("确认导入备份") },
+            text = { Text("导入会按备份文件恢复记录、照片 URI、标签和关联关系。同 ID 的本地记录会被覆盖，建议先导出当前数据。") },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmImport) {
+                    Text("确认导入")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelImport) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
