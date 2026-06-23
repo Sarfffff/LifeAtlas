@@ -20,10 +20,9 @@
 
 ## 文档目录
 
-- [产品需求文档 PRD](docs/PRD.md)
-- [软件需求规格 SRS](docs/SRS.md)
-- [架构与技术选型](docs/ARCHITECTURE.md)
-- [数据模型设计](docs/DATA_MODEL.md)
-- [迭代路线图](docs/ROADMAP.md)
-- [工程开发流程](docs/DEVELOPMENT_PROCESS.md)
-
+- [产品需求文档](docs/产品需求文档.md)
+- [软件需求规格说明书](docs/软件需求规格说明书.md)
+- [架构与技术选型](docs/架构与技术选型.md)
+- [数据模型设计](docs/数据模型设计.md)
+- [迭代路线图](docs/迭代路线图.md)
+- [工程开发流程](docs/工程开发流程.md)
