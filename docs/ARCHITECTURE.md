@@ -1,0 +1,198 @@
+# 岁迹 LifeAtlas 架构与技术选型
+
+## 1. 总体原则
+
+岁迹采用本地优先架构。第一版不依赖后端服务，优先把记录、时间轴、详情页、地图点位和照片引用做稳定。后续如需云同步，再在现有领域模型和 Repository 层之上增加同步模块。
+
+## 2. 技术栈
+
+### 2.1 Android 客户端
+
+| 类型 | 选型 | 原因 |
+| --- | --- | --- |
+| 语言 | Kotlin | Android 主流现代语言，协程和类型系统适合长期维护 |
+| UI | Jetpack Compose | 原生现代 UI，适合快速迭代和声明式状态管理 |
+| 架构 | MVVM + Repository | 简单、清晰，适合本地优先 App |
+| 本地数据库 | Room | 类型安全、支持 Migration、适合结构化数据 |
+| 简单配置 | DataStore | 替代 SharedPreferences，适合保存设置项 |
+| 图片加载 | Coil | Compose 生态友好 |
+| 照片选择 | Android Photo Picker | 减少相册权限使用，隐私更好 |
+| 地图 | 高德地图 Android SDK | 面向国内用户时可用性更好 |
+| 后台任务 | WorkManager | 后续用于缩略图、压缩、导出、备份 |
+| 导航 | Navigation Compose | 官方 Compose 导航方案 |
+
+### 2.2 后端预留
+
+第一版不做后端。后续做同步时可选：
+
+| 类型 | 选型 |
+| --- | --- |
+| 服务框架 | Kotlin Ktor 或 Spring Boot |
+| 数据库 | PostgreSQL |
+| 缓存 | Redis |
+| 对象存储 | S3 兼容对象存储、阿里云 OSS、腾讯云 COS |
+| 鉴权 | OAuth 2.1 / JWT |
+| 部署 | Docker + Kubernetes 或轻量云主机 |
+
+## 3. 推荐模块结构
+
+```text
+app/src/main/java/com/xiaoyin/lifeatlas
+
+├── MainActivity.kt
+├── LifeAtlasApp.kt
+├── core
+│   ├── database
+│   ├── datastore
+│   ├── model
+│   ├── permission
+│   ├── time
+│   ├── util
+│   └── ui
+├── data
+│   ├── dao
+│   ├── entity
+│   ├── mapper
+│   └── repository
+├── domain
+│   ├── model
+│   └── usecase
+├── feature
+│   ├── home
+│   ├── map
+│   ├── record
+│   ├── settings
+│   ├── tag
+│   └── timeline
+└── navigation
+```
+
+## 4. 分层说明
+
+### 4.1 UI 层
+
+位置：`feature/*`
+
+职责：
+
+- Compose 页面
+- 页面状态展示
+- 用户交互事件分发
+- 调用 ViewModel，不直接访问 DAO
+
+### 4.2 ViewModel 层
+
+职责：
+
+- 维护页面 UI State
+- 处理用户事件
+- 调用 Repository 或 UseCase
+- 暴露 Flow 或 StateFlow 给 UI
+
+### 4.3 Domain 层
+
+职责：
+
+- 定义业务模型
+- 放置可复用业务规则
+- 为后续多端或后端同步预留稳定模型
+
+MVP 可以轻量实现，不需要过度抽象。
+
+### 4.4 Data 层
+
+职责：
+
+- Room Entity
+- DAO
+- Repository 实现
+- Entity 与 Domain Model 映射
+
+### 4.5 Core 层
+
+职责：
+
+- 数据库初始化
+- 通用 UI 组件
+- 权限工具
+- 时间格式化
+- 日志和错误处理
+
+## 5. 可扩展设计
+
+### 5.1 地图适配层
+
+不要让业务层直接依赖高德地图对象。建议预留统一模型：
+
+```kotlin
+data class MapPoint(
+    val id: Long,
+    val latitude: Double,
+    val longitude: Double,
+    val title: String,
+    val subtitle: String?
+)
+```
+
+后续可以把高德地图和 Google Maps 的渲染实现隔离在不同 adapter 中。
+
+### 5.2 同步预留字段
+
+本地表建议预留：
+
+- created_at
+- updated_at
+- deleted_at
+- sync_state
+- remote_id
+
+MVP 可以先不启用云同步，但字段规划应避免后续大迁移。
+
+### 5.3 导出格式版本化
+
+导出 JSON 顶层应包含版本号：
+
+```json
+{
+  "schemaVersion": 1,
+  "exportedAt": 1782144000000,
+  "records": []
+}
+```
+
+这样后续导入旧版本数据时可以做兼容处理。
+
+## 6. 高并发与开源预留
+
+虽然第一版没有后端，高并发主要是后续云同步阶段的问题。为后续开源和扩展，应从现在开始坚持：
+
+- 客户端业务模型稳定，减少破坏性修改
+- 数据库迁移可追踪
+- 导出格式可版本化
+- 后端接口未来按资源建模，不按页面建模
+- 图片走对象存储，不进入关系数据库
+- 地理查询使用 PostgreSQL + PostGIS
+- 高频读取使用 Redis 缓存
+- 同步接口支持增量拉取和幂等写入
+
+## 7. 推荐后端演进架构
+
+```text
+Android App
+  -> API Gateway
+  -> Auth Service
+  -> LifeAtlas API
+  -> PostgreSQL/PostGIS
+  -> Object Storage
+  -> Redis
+  -> Async Worker
+```
+
+高并发场景下，核心压力来自照片上传、地图点位查询、年度统计和 AI 报告生成。对应策略：
+
+- 照片上传直传对象存储
+- 地图点位按视口和缩放级别分页查询
+- 年度统计异步预计算
+- AI 报告进入任务队列
+- 用户数据按 userId 做访问隔离
+

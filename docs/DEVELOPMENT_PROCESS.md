@@ -1,0 +1,122 @@
+# 岁迹 LifeAtlas 工程开发流程
+
+## 1. 开发原则
+
+- 小步迭代，先跑通闭环
+- 本地优先，隐私优先
+- UI 层不直接访问数据库
+- 数据结构变更必须有迁移方案
+- 每个阶段都有明确验收标准
+
+## 2. 推荐分支策略
+
+```text
+main
+develop
+feature/init-project
+feature/room
+feature/add-record
+feature/timeline
+feature/detail
+feature/map
+feature/photo-picker
+feature/tags
+feature/export
+```
+
+规则：
+
+- `main` 保持稳定版本
+- `develop` 用于集成开发
+- 每个功能从 `develop` 拉 feature 分支
+- 功能完成并验收后合并回 `develop`
+- 阶段稳定后再合并到 `main`
+
+## 3. 提交规范
+
+采用 Conventional Commits：
+
+```text
+feat: add memory record database
+feat: add timeline page
+fix: prevent empty title crash
+docs: add product requirement document
+refactor: split record repository
+test: add memory record dao tests
+```
+
+常用类型：
+
+- feat：新增功能
+- fix：修复问题
+- docs：文档
+- refactor：重构
+- test：测试
+- chore：构建、配置、依赖等杂项
+
+## 4. 单个功能开发流程
+
+```text
+确认需求 -> 拆任务 -> 建分支 -> 编码 -> 本地验证 -> 补测试 -> 更新文档 -> 合并
+```
+
+每个功能至少包含：
+
+- 功能说明
+- 数据变更说明
+- 手动验收步骤
+- 风险点
+
+## 5. 测试策略
+
+### 5.1 MVP 阶段
+
+重点测试：
+
+- DAO 增删改查
+- Repository 数据流
+- 新增记录流程
+- 时间轴排序
+- 删除记录关联清理
+
+### 5.2 后续阶段
+
+增加：
+
+- UI 测试
+- 数据库 Migration 测试
+- 导出导入测试
+- 图片 URI 权限测试
+- 地图点位渲染测试
+
+## 6. Definition of Done
+
+一个功能完成需满足：
+
+1. 代码可以编译
+2. 核心流程可以手动跑通
+3. 没有新增未说明的敏感权限
+4. 数据库变更有 Migration 或明确说明
+5. 关键逻辑有测试或可复现验收步骤
+6. 文档同步更新
+
+## 7. 后续给 Codex 的任务模板
+
+### 7.1 初始化项目结构
+
+```text
+请基于当前 Android Kotlin Compose 项目，创建 LifeAtlas 的基础目录结构，包括 core、data、domain、feature、navigation，并创建 Home、Timeline、AddRecord、RecordDetail、Map、Settings 页面骨架和底部导航。
+```
+
+### 7.2 创建 Room 数据库
+
+```text
+请为 LifeAtlas 实现 Room 数据库，包含 MemoryRecordEntity、MemoryRecordDao、AppDatabase、MemoryRepository。先支持新增、查询全部、按 ID 查询、更新、删除。
+```
+
+### 7.3 实现新增记录闭环
+
+```text
+请实现 AddRecord 页面和 Timeline 页面，使用户可以新增文字记录，保存到 Room，并在时间轴中按 recordTime 倒序展示。点击记录进入详情页。
+```
+
