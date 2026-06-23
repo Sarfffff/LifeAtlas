@@ -13,9 +13,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
 import com.xiaoyin.lifeatlas.feature.home.HomeRoute
 import com.xiaoyin.lifeatlas.feature.map.MapRoute
 import com.xiaoyin.lifeatlas.feature.record.AddRecordRoute
+import com.xiaoyin.lifeatlas.feature.record.RecordDetailRoute
 import com.xiaoyin.lifeatlas.feature.settings.SettingsRoute
 import com.xiaoyin.lifeatlas.feature.timeline.TimelineRoute
 
@@ -58,7 +61,13 @@ fun LifeAtlasNavHost() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(LifeAtlasDestination.Home.route) { HomeRoute() }
-            composable(LifeAtlasDestination.Timeline.route) { TimelineRoute() }
+            composable(LifeAtlasDestination.Timeline.route) {
+                TimelineRoute(
+                    onRecordClick = { recordId ->
+                        navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
+                    }
+                )
+            }
             composable(LifeAtlasDestination.AddRecord.route) {
                 AddRecordRoute(
                     onRecordSaved = {
@@ -73,6 +82,26 @@ fun LifeAtlasNavHost() {
             }
             composable(LifeAtlasDestination.Map.route) { MapRoute() }
             composable(LifeAtlasDestination.Settings.route) { SettingsRoute() }
+            composable(
+                route = LifeAtlasDestination.RecordDetail.route,
+                arguments = listOf(
+                    navArgument(LifeAtlasDestination.RecordDetail.recordIdArg) {
+                        type = NavType.LongType
+                    }
+                )
+            ) {
+                RecordDetailRoute(
+                    onBack = { navController.popBackStack() },
+                    onDeleted = {
+                        navController.navigate(LifeAtlasDestination.Timeline.route) {
+                            popUpTo(LifeAtlasDestination.Timeline.route) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
         }
     }
 }

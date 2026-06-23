@@ -18,6 +18,13 @@ sealed class LifeAtlasDestination(
     data object AddRecord : LifeAtlasDestination("add_record", "新增", Icons.Outlined.AddCircle)
     data object Map : LifeAtlasDestination("map", "地图", Icons.Outlined.Map)
     data object Settings : LifeAtlasDestination("settings", "设置", Icons.Outlined.Settings)
+
+    data object RecordDetail {
+        const val route = "record_detail/{recordId}"
+        const val recordIdArg = "recordId"
+
+        fun createRoute(recordId: Long): String = "record_detail/$recordId"
+    }
 }
 
 val topLevelDestinations = listOf(
@@ -27,4 +34,3 @@ val topLevelDestinations = listOf(
     LifeAtlasDestination.Map,
     LifeAtlasDestination.Settings
 )
-

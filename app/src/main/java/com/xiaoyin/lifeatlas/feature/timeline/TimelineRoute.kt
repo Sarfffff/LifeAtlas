@@ -1,6 +1,7 @@
 package com.xiaoyin.lifeatlas.feature.timeline
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,7 +26,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun TimelineRoute(viewModel: TimelineViewModel = viewModel()) {
+fun TimelineRoute(
+    onRecordClick: (Long) -> Unit,
+    viewModel: TimelineViewModel = viewModel()
+) {
     val records by viewModel.records.collectAsState()
 
     Column(
@@ -48,22 +52,27 @@ fun TimelineRoute(viewModel: TimelineViewModel = viewModel()) {
                 style = MaterialTheme.typography.bodyLarge
             )
         } else {
-            Text(
-                text = "2026 年 6 月",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            records.forEach { record ->
-                TimelinePreviewCard(record = record)
+            val groupedRecords = records.groupBy { it.recordTime.formatMonth() }
+            groupedRecords.forEach { (month, monthRecords) ->
+                Text(
+                    text = month,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                monthRecords.forEach { record ->
+                    TimelinePreviewCard(record = record, onClick = { onRecordClick(record.id) })
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TimelinePreviewCard(record: MemoryRecord) {
+private fun TimelinePreviewCard(record: MemoryRecord, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = AtlasMist)
     ) {
@@ -89,4 +98,10 @@ private fun Long.formatDate(): String {
     return Instant.ofEpochMilli(this)
         .atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ISO_LOCAL_DATE)
+}
+
+private fun Long.formatMonth(): String {
+    return Instant.ofEpochMilli(this)
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("yyyy 年 M 月"))
 }
