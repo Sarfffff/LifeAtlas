@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
+import com.xiaoyin.lifeatlas.core.time.formatDate
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 import java.time.Instant
 import java.time.ZoneId
@@ -92,12 +93,6 @@ private fun TimelinePreviewCard(record: MemoryRecord, onClick: () -> Unit) {
             Text(text = record.content, style = MaterialTheme.typography.bodyMedium)
         }
     }
-}
-
-private fun Long.formatDate(): String {
-    return Instant.ofEpochMilli(this)
-        .atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ISO_LOCAL_DATE)
 }
 
 private fun Long.formatMonth(): String {

@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 data class AddRecordUiState(
     val title: String = "",
     val content: String = "",
+    val recordTime: Long = System.currentTimeMillis(),
     val locationName: String = "",
     val mood: String = "",
     val importance: Float = 3f,
@@ -36,6 +37,10 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun onContentChange(value: String) {
         _uiState.update { it.copy(content = value) }
+    }
+
+    fun onRecordTimeChange(value: Long) {
+        _uiState.update { it.copy(recordTime = value) }
     }
 
     fun onLocationNameChange(value: String) {
@@ -66,7 +71,7 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
                     id = 0,
                     title = state.title.trim(),
                     content = state.content.trim(),
-                    recordTime = now,
+                    recordTime = state.recordTime,
                     latitude = null,
                     longitude = null,
                     locationName = state.locationName.trim().ifBlank { null },
@@ -90,4 +95,3 @@ class AddRecordViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(savedRecordId = null) }
     }
 }
-

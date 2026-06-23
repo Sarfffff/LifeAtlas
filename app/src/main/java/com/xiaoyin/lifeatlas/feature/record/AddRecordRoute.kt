@@ -7,25 +7,37 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xiaoyin.lifeatlas.core.time.formatDate
+import androidx.compose.material3.rememberDatePickerState
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddRecordRoute(
     onRecordSaved: () -> Unit,
     viewModel: AddRecordViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = uiState.recordTime)
 
     LaunchedEffect(uiState.savedRecordId) {
         if (uiState.savedRecordId != null) {
@@ -56,6 +68,12 @@ fun AddRecordRoute(
             label = { Text("正文") },
             minLines = 4
         )
+        Button(
+            onClick = { showDatePicker = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("发生日期：${uiState.recordTime.formatDate()}")
+        }
         OutlinedTextField(
             value = uiState.locationName,
             onValueChange = viewModel::onLocationNameChange,
@@ -90,6 +108,29 @@ fun AddRecordRoute(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(if (uiState.isSaving) "保存中" else "保存")
+        }
+    }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let(viewModel::onRecordTimeChange)
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("取消")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }
