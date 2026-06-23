@@ -12,22 +12,27 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun AddRecordRoute() {
-    var title by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var mood by remember { mutableStateOf("") }
-    var importance by remember { mutableFloatStateOf(3f) }
+fun AddRecordRoute(
+    onRecordSaved: () -> Unit,
+    viewModel: AddRecordViewModel = viewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(uiState.savedRecordId) {
+        if (uiState.savedRecordId != null) {
+            viewModel.onSavedHandled()
+            onRecordSaved()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -38,46 +43,53 @@ fun AddRecordRoute() {
     ) {
         Text(text = "新增记录", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         OutlinedTextField(
-            value = title,
-            onValueChange = { title = it },
+            value = uiState.title,
+            onValueChange = viewModel::onTitleChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("标题") },
             singleLine = true
         )
         OutlinedTextField(
-            value = content,
-            onValueChange = { content = it },
+            value = uiState.content,
+            onValueChange = viewModel::onContentChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("正文") },
             minLines = 4
         )
         OutlinedTextField(
-            value = location,
-            onValueChange = { location = it },
+            value = uiState.locationName,
+            onValueChange = viewModel::onLocationNameChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("地点") },
             singleLine = true
         )
         OutlinedTextField(
-            value = mood,
-            onValueChange = { mood = it },
+            value = uiState.mood,
+            onValueChange = viewModel::onMoodChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("心情") },
             singleLine = true
         )
-        Text(text = "重要程度：${importance.toInt()}", style = MaterialTheme.typography.bodyMedium)
+        Text(text = "重要程度：${uiState.importance.toInt()}", style = MaterialTheme.typography.bodyMedium)
         Slider(
-            value = importance,
-            onValueChange = { importance = it },
+            value = uiState.importance,
+            onValueChange = viewModel::onImportanceChange,
             valueRange = 1f..5f,
             steps = 3
         )
+        uiState.errorMessage?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
         Button(
-            onClick = { },
+            onClick = viewModel::saveRecord,
+            enabled = uiState.canSave,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("保存")
+            Text(if (uiState.isSaving) "保存中" else "保存")
         }
     }
 }
-

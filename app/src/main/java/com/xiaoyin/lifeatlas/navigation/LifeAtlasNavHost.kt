@@ -59,10 +59,20 @@ fun LifeAtlasNavHost() {
         ) {
             composable(LifeAtlasDestination.Home.route) { HomeRoute() }
             composable(LifeAtlasDestination.Timeline.route) { TimelineRoute() }
-            composable(LifeAtlasDestination.AddRecord.route) { AddRecordRoute() }
+            composable(LifeAtlasDestination.AddRecord.route) {
+                AddRecordRoute(
+                    onRecordSaved = {
+                        navController.navigate(LifeAtlasDestination.Timeline.route) {
+                            popUpTo(LifeAtlasDestination.AddRecord.route) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable(LifeAtlasDestination.Map.route) { MapRoute() }
             composable(LifeAtlasDestination.Settings.route) { SettingsRoute() }
         }
     }
 }
-
