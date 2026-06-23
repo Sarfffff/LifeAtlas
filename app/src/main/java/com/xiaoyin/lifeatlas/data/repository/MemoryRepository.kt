@@ -31,6 +31,12 @@ class MemoryRepository(
         }
     }
 
+    fun observeFirstPhotosByRecord(): Flow<Map<Long, Photo>> {
+        return photoDao.observeFirstPhotosByRecord().map { photos ->
+            photos.associate { it.recordId to it.toModel() }
+        }
+    }
+
     suspend fun addRecord(record: MemoryRecord): Long {
         return memoryRecordDao.insert(record.toEntity())
     }

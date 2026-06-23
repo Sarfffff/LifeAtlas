@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -20,8 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
+import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.core.time.formatDate
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
+import coil.compose.AsyncImage
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -31,7 +34,8 @@ fun TimelineRoute(
     onRecordClick: (Long) -> Unit,
     viewModel: TimelineViewModel = viewModel()
 ) {
-    val records by viewModel.records.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    val records = uiState.records
 
     Column(
         modifier = Modifier
@@ -61,7 +65,11 @@ fun TimelineRoute(
                     fontWeight = FontWeight.SemiBold
                 )
                 monthRecords.forEach { record ->
-                    TimelinePreviewCard(record = record, onClick = { onRecordClick(record.id) })
+                    TimelinePreviewCard(
+                        record = record,
+                        firstPhoto = uiState.firstPhotosByRecordId[record.id],
+                        onClick = { onRecordClick(record.id) }
+                    )
                 }
             }
         }
@@ -69,7 +77,7 @@ fun TimelineRoute(
 }
 
 @Composable
-private fun TimelinePreviewCard(record: MemoryRecord, onClick: () -> Unit) {
+private fun TimelinePreviewCard(record: MemoryRecord, firstPhoto: Photo?, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -81,6 +89,15 @@ private fun TimelinePreviewCard(record: MemoryRecord, onClick: () -> Unit) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            firstPhoto?.let { photo ->
+                AsyncImage(
+                    model = photo.originalUri,
+                    contentDescription = "记录首图",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                )
+            }
             Text(
                 text = record.title,
                 style = MaterialTheme.typography.titleMedium,
