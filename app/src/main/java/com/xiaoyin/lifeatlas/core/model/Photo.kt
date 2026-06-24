@@ -10,5 +10,7 @@ data class Photo(
     val latitude: Double?,
     val longitude: Double?,
     val createdAt: Long
-)
-
+) {
+    val displayUri: String
+        get() = thumbnailPath ?: compressedPath ?: originalUri
+}

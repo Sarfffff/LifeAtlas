@@ -205,7 +205,7 @@ private fun TimelinePreviewCard(record: MemoryRecord, firstPhoto: Photo?, onClic
         ) {
             firstPhoto?.let { photo ->
                 AsyncImage(
-                    model = photo.originalUri,
+                    model = photo.displayUri,
                     contentDescription = "记录首图",
                     modifier = Modifier
                         .fillMaxWidth()

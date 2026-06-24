@@ -166,7 +166,7 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags:
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     AsyncImage(
-                        model = photo.originalUri,
+                        model = photo.displayUri,
                         contentDescription = "记录照片",
                         modifier = Modifier
                             .height(160.dp)

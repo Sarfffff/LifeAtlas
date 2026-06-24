@@ -15,6 +15,9 @@ interface PhotoDao {
     @Query("SELECT * FROM photos ORDER BY record_id ASC, id ASC")
     suspend fun getAll(): List<PhotoEntity>
 
+    @Query("SELECT * FROM photos WHERE record_id = :recordId ORDER BY id ASC")
+    suspend fun getByRecordId(recordId: Long): List<PhotoEntity>
+
     @Query("SELECT COUNT(*) FROM photos")
     fun observePhotoCount(): Flow<Int>
 

@@ -1,5 +1,6 @@
 package com.xiaoyin.lifeatlas.data.repository
 
+import com.xiaoyin.lifeatlas.core.media.PhotoCacheManager
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.core.model.Tag
@@ -12,13 +13,16 @@ import com.xiaoyin.lifeatlas.data.entity.PhotoEntity
 import com.xiaoyin.lifeatlas.data.entity.TagEntity
 import com.xiaoyin.lifeatlas.data.mapper.toEntity
 import com.xiaoyin.lifeatlas.data.mapper.toModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 class MemoryRepository(
     private val memoryRecordDao: MemoryRecordDao,
     private val photoDao: PhotoDao,
-    private val tagDao: TagDao
+    private val tagDao: TagDao,
+    private val photoCacheManager: PhotoCacheManager
 ) {
     fun observeAllRecords(): Flow<List<MemoryRecord>> {
         return memoryRecordDao.observeAll().map { records ->
@@ -103,6 +107,7 @@ class MemoryRepository(
     }
 
     suspend fun deleteRecord(id: Long) {
+        deletePhotoCaches(photoDao.getByRecordId(id))
         memoryRecordDao.deleteById(id)
     }
 
@@ -137,7 +142,9 @@ class MemoryRepository(
                 PhotoEntity(
                     recordId = recordId,
                     originalUri = uri,
-                    thumbnailPath = null,
+                    thumbnailPath = withContext(Dispatchers.IO) {
+                        photoCacheManager.createThumbnail(uri)
+                    },
                     compressedPath = null,
                     takenAt = null,
                     latitude = null,
@@ -149,8 +156,19 @@ class MemoryRepository(
     }
 
     private suspend fun replacePhotos(recordId: Long, photoUris: List<String>) {
+        val oldPhotos = photoDao.getByRecordId(recordId)
         photoDao.deleteByRecordId(recordId)
+        deletePhotoCaches(oldPhotos)
         addPhotos(recordId, photoUris)
+    }
+
+    private suspend fun deletePhotoCaches(photos: List<PhotoEntity>) {
+        withContext(Dispatchers.IO) {
+            photos.forEach { photo ->
+                photoCacheManager.deleteCachedPhoto(photo.thumbnailPath)
+                photoCacheManager.deleteCachedPhoto(photo.compressedPath)
+            }
+        }
     }
 
     private suspend fun replaceTags(recordId: Long, tagNames: List<String>) {
