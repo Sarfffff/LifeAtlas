@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -41,6 +43,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.core.model.Tag
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
 import coil.compose.SubcomposeAsyncImage
 import java.time.Instant
 import java.time.ZoneId
@@ -68,6 +74,7 @@ fun RecordDetailRoute(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -103,7 +110,7 @@ fun RecordDetailRoute(
         }
 
         if (record == null) {
-            Text(text = "记录不存在或已删除", style = MaterialTheme.typography.bodyLarge)
+            EmptyDetailCard()
         } else {
             RecordDetailContent(record = record, photos = uiState.photos, tags = uiState.tags)
         }
@@ -136,29 +143,37 @@ fun RecordDetailRoute(
 
 @Composable
 private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags: List<Tag>) {
-    Text(
-        text = record.title,
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold
-    )
-    Text(
-        text = record.recordTime.formatDateTime(),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
-    )
-    record.locationName?.let {
-        Text(text = "地点：$it", style = MaterialTheme.typography.bodyMedium)
+    Card(
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = record.title,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                color = WildernessTeal
+            )
+            Text(
+                text = record.recordTime.formatDateTime(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+            )
+            record.locationName?.let {
+                DetailLine(label = "地点", value = it)
+            }
+            if (record.latitude != null && record.longitude != null) {
+                DetailLine(label = "坐标", value = "${record.latitude}, ${record.longitude}")
+            }
+            record.mood?.let {
+                DetailLine(label = "心情", value = it)
+            }
+            DetailLine(label = "重要程度", value = "${record.importance}")
+        }
     }
-    if (record.latitude != null && record.longitude != null) {
-        Text(
-            text = "坐标：${record.latitude}, ${record.longitude}",
-            style = MaterialTheme.typography.bodyMedium
-        )
-    }
-    record.mood?.let {
-        Text(text = "心情：$it", style = MaterialTheme.typography.bodyMedium)
-    }
-    Text(text = "重要程度：${record.importance}", style = MaterialTheme.typography.bodyMedium)
     if (tags.isNotEmpty()) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(tags) { tag ->
@@ -175,13 +190,13 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags:
         }
     }
     if (photos.isNotEmpty()) {
-        Text(text = "照片", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(text = "照片记忆", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = WildernessTeal)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(photos) { photo ->
                 Card(
                     modifier = Modifier.width(220.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = WildernessPaper)
                 ) {
                     DetailPhotoImage(photo = photo)
                 }
@@ -189,7 +204,40 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags:
         }
     }
     Spacer(modifier = Modifier.height(8.dp))
-    Text(text = record.content.ifBlank { "暂无正文" }, style = MaterialTheme.typography.bodyLarge)
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+    ) {
+        Text(
+            text = record.content.ifBlank { "暂无正文" },
+            modifier = Modifier.padding(18.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+        )
+    }
+}
+
+@Composable
+private fun DetailLine(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text = "$label：", style = MaterialTheme.typography.bodyMedium, color = WildernessTeal, fontWeight = FontWeight.Bold)
+        Text(text = value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f))
+    }
+}
+
+@Composable
+private fun EmptyDetailCard() {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Text(
+            text = "这段记忆不存在或已被删除。",
+            modifier = Modifier.padding(18.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = WildernessTeal
+        )
+    }
 }
 
 @Composable
@@ -215,7 +263,7 @@ private fun PhotoPlaceholder(text: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(WildernessSky.copy(alpha = 0.35f)),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -238,7 +286,7 @@ private fun TagColorDot(color: String?) {
 private fun String?.toComposeColor(): Color {
     return this?.let { value ->
         runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrNull()
-    } ?: Color(0xFF8A8F98)
+    } ?: WildernessWildflower
 }
 
 private fun Long.formatDateTime(): String {

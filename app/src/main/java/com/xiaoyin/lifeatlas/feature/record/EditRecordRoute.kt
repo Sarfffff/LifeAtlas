@@ -5,12 +5,19 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,12 +35,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.xiaoyin.lifeatlas.core.time.formatDate
 import coil.compose.AsyncImage
+import com.xiaoyin.lifeatlas.core.time.formatDate
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,13 +87,33 @@ fun EditRecordRoute(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(text = "编辑记录", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "整理记忆",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                color = WildernessTeal
+            )
+            OutlinedButton(onClick = onBack) {
+                Text("返回")
+            }
+        }
+        Text(
+            text = "补上新的照片、地点和心情，让这段旅程更完整。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+        )
 
         if (uiState.isLoading) {
-            Text(text = "正在加载记录", style = MaterialTheme.typography.bodyLarge)
+            EmptyEditCard(text = "正在载入这段记忆")
         } else {
             OutlinedTextField(
                 value = uiState.title,
@@ -139,7 +172,7 @@ fun EditRecordRoute(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("地图选点")
+                Text("地图选点 / 使用定位")
             }
             OutlinedTextField(
                 value = uiState.mood,
@@ -171,26 +204,39 @@ fun EditRecordRoute(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("管理照片（${uiState.photoUris.size}）")
+                Text("管理照片：${uiState.photoUris.size} 张")
             }
             if (uiState.photoUris.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     uiState.photoUris.forEach { uri ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = WildernessPaper)
                         ) {
-                            AsyncImage(
-                                model = uri,
-                                contentDescription = "记录照片",
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = { viewModel.removePhoto(uri) }) {
-                                Text("移除")
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = uri,
+                                    contentDescription = "记录照片",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(96.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(WildernessSky.copy(alpha = 0.35f))
+                                )
+                                TextButton(onClick = { viewModel.removePhoto(uri) }) {
+                                    Text("移除")
+                                }
                             }
                         }
                     }
                 }
+            } else {
+                EmptyEditCard(text = "这条记录还没有照片，可以先保存文字，之后再补。")
             }
             uiState.errorMessage?.let { message ->
                 Text(
@@ -211,11 +257,19 @@ fun EditRecordRoute(
                 enabled = uiState.canSave,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(if (uiState.isSaving) "保存中" else "保存修改")
+                Text(
+                    when {
+                        uiState.isSaving -> "保存中"
+                        uiState.title.isBlank() -> "填写标题后保存"
+                        else -> "确认保存修改"
+                    }
+                )
             }
-            OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                Text("取消")
-            }
+            Text(
+                text = "如果按钮不可点击，请先填写标题。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.56f)
+            )
         }
     }
 
@@ -240,6 +294,24 @@ fun EditRecordRoute(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+}
+
+@Composable
+private fun EmptyEditCard(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(76.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+        )
     }
 }
 

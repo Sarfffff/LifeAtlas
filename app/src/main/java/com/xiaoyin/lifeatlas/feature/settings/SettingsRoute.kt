@@ -263,7 +263,7 @@ private fun TravelerProfileCard() {
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Image(
-                painter = painterResource(id = R.drawable.mascot_companion),
+                painter = painterResource(id = R.drawable.ic_launcher_mascot_text),
                 contentDescription = "旷野小旅人",
                 modifier = Modifier
                     .size(72.dp)

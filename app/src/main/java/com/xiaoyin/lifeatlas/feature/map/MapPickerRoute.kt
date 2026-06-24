@@ -117,7 +117,7 @@ fun MapPickerRoute(
         Text(text = "地图选点", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
         Text(
             text = if (MapSdkConfig.isAmapConfigured) {
-                "点击地图，或者使用当前位置，把这一段记忆钉在世界上。"
+                "拖动地图，或者使用当前位置，把这一段记忆钉在世界上。"
             } else {
                 "当前没有配置高德 Key，真实地图不可用；你仍然可以授权定位获取当前位置，或返回表单手动填写经纬度。"
             },
@@ -163,7 +163,7 @@ fun MapPickerRoute(
                 point.address?.let { address ->
                     "已选择：$address\n${point.latitude}, ${point.longitude}"
                 } ?: "已选择：${point.latitude}, ${point.longitude}"
-            } ?: if (MapSdkConfig.isAmapConfigured) "点击地图选择记录位置。" else "可点击“使用当前位置”申请定位权限。也可以返回表单手动填写经纬度。",
+            } ?: if (MapSdkConfig.isAmapConfigured) "拖动地图，让中心定位针停在记录位置。" else "可点击“使用当前位置”申请定位权限。也可以返回表单手动填写经纬度。",
             style = MaterialTheme.typography.bodyMedium
         )
         message?.let { text ->
@@ -314,7 +314,7 @@ private fun MapPickerUnavailableContent() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-            text = "真实地图需要高德 Key",
+                text = "真实地图需要高德 Key",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = WildernessTeal

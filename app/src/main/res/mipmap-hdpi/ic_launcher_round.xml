@@ -1,15 +1,4 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
-    <path android:fillColor="#B9E1D4" android:pathData="M0,0h48v48h-48z" />
-    <path android:fillColor="#F4D7A6" android:pathData="M24,6C17,6 12,12 12,20c0,4 1,7 3,10h18c2,-3 3,-6 3,-10C36,12 31,6 24,6z" />
-    <path android:fillColor="#FFF7EA" android:pathData="M11,22C11,12 17,8 24,8s13,4 13,14c0,10 -6,17 -13,17S11,32 11,22z" />
-    <path android:fillColor="#183F3E" android:pathData="M18,22A3,4 0,1 0,18,30A3,4 0,1 0,18,22" />
-    <path android:fillColor="#183F3E" android:pathData="M30,22A3,4 0,1 0,30,30A3,4 0,1 0,30,22" />
-    <path android:fillColor="#F2A64B" android:pathData="M22,30C23,32 25,32 26,30L24,27z" />
-    <path android:fillColor="#2B8A82" android:pathData="M11,35C15,39 19,41 24,41s9,-2 13,-6v7C33,46 29,48 24,48s-9,-2 -13,-6z" />
-    <path android:fillColor="#8AC8A6" android:pathData="M24,1C20,1 17,4 17,8c0,6 6,9 7,10c1,-1 7,-4 7,-10C31,4 28,1 24,1z" />
-    <path android:fillColor="#FFF7EA" android:pathData="M24,5A3,3 0,1 0,24,11A3,3 0,1 0,24,5" />
-</vector>
+<?xml version="1.0" encoding="utf-8"?>
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:gravity="center"
+    android:src="@drawable/ic_launcher_mascot_text" />

@@ -140,7 +140,7 @@ private fun WildernessHero() {
                     .background(WildernessTeal.copy(alpha = 0.24f))
             )
             Image(
-                painter = painterResource(id = R.drawable.mascot_companion),
+                painter = painterResource(id = R.drawable.ic_launcher_mascot_text),
                 contentDescription = "岁迹小旅人",
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -24,13 +26,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.Tag
-import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 
 @Composable
 fun TagManagementRoute(
@@ -43,23 +47,36 @@ fun TagManagementRoute(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "标签管理", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(
+                text = "标签背包",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                color = WildernessTeal
+            )
             OutlinedButton(onClick = onBack) {
                 Text("返回")
             }
         }
-        Text(
-            text = "管理当前已有标签。删除标签只会移除标签和记录关联，不会删除记录。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
-        )
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+        ) {
+            Text(
+                text = "这里用于整理记录里的标签。删除标签只会移除标签和记录的关联，不会删除任何记忆本身。",
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+            )
+        }
         uiState.errorMessage?.let { message ->
             Text(
                 text = message,
@@ -68,10 +85,7 @@ fun TagManagementRoute(
             )
         }
         if (uiState.tags.isEmpty()) {
-            Text(
-                text = "暂无标签。新增或编辑记录时填写标签后，会出现在这里。",
-                style = MaterialTheme.typography.bodyLarge
-            )
+            EmptyTagCard()
         } else {
             uiState.tags.forEach { tag ->
                 TagCard(
@@ -118,14 +132,17 @@ fun TagManagementRoute(
 private fun TagCard(tag: Tag, onEdit: () -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = AtlasMist)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 ColorDot(color = tag.color)
                 AssistChip(
                     onClick = { },
@@ -141,6 +158,21 @@ private fun TagCard(tag: Tag, onEdit: () -> Unit, onDelete: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyTagCard() {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Text(
+            text = "暂无标签。新增或编辑记录时填写标签后，会出现在这里。",
+            modifier = Modifier.padding(18.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = WildernessTeal
+        )
     }
 }
 
@@ -220,8 +252,8 @@ private fun String?.toComposeColor(): Color {
 private data class TagColorOption(val name: String, val hex: String)
 
 private val TagColorOptions = listOf(
-    TagColorOption("蓝", "#3B82F6"),
-    TagColorOption("绿", "#22C55E"),
-    TagColorOption("橙", "#F97316"),
-    TagColorOption("紫", "#8B5CF6")
+    TagColorOption("山湖蓝", "#3B82F6"),
+    TagColorOption("草地绿", "#22C55E"),
+    TagColorOption("日落橙", "#F97316"),
+    TagColorOption("花野紫", "#8B5CF6")
 )
