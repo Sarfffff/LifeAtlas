@@ -55,3 +55,19 @@ data class ExportRecordTag(
     val tagId: Long
 )
 
+@Serializable
+data class LifeAtlasBackupManifest(
+    val schemaVersion: Int,
+    val app: String,
+    val exportedAt: Long,
+    val jsonEntry: String,
+    val mediaFiles: List<BackupMediaFile>
+)
+
+@Serializable
+data class BackupMediaFile(
+    val photoId: Long,
+    val kind: String,
+    val entryName: String,
+    val sourcePath: String
+)

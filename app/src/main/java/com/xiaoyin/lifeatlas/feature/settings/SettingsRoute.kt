@@ -47,6 +47,15 @@ fun SettingsRoute(
             viewModel.onExportLaunchHandled()
         }
     }
+    val backupExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) {
+            viewModel.writeBackupExport(uri)
+        } else {
+            viewModel.onBackupExportLaunchHandled()
+        }
+    }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -58,6 +67,12 @@ fun SettingsRoute(
     LaunchedEffect(uiState.pendingExportJson) {
         if (uiState.pendingExportJson != null) {
             exportLauncher.launch("lifeatlas_export.json")
+        }
+    }
+
+    LaunchedEffect(uiState.pendingBackupExport) {
+        if (uiState.pendingBackupExport) {
+            backupExportLauncher.launch("lifeatlas_backup.zip")
         }
     }
 
@@ -88,6 +103,18 @@ fun SettingsRoute(
                     enabled = !uiState.isExporting
                 ) {
                     Text(if (uiState.isExporting) "准备中" else "导出")
+                }
+            }
+        )
+        SettingCard(
+            title = "完整备份包",
+            body = "导出 JSON 数据和已生成的照片缩略图缓存为 zip 文件。",
+            trailing = {
+                Button(
+                    onClick = viewModel::prepareBackupExport,
+                    enabled = !uiState.isExportingBackup
+                ) {
+                    Text(if (uiState.isExportingBackup) "打包中" else "导出")
                 }
             }
         )

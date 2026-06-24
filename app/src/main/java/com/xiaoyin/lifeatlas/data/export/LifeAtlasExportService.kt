@@ -12,6 +12,10 @@ import androidx.room.withTransaction
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.File
+import java.io.OutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class LifeAtlasExportService(
     private val database: AppDatabase,
@@ -74,6 +78,38 @@ class LifeAtlasExportService(
         )
 
         return json.encodeToString(export)
+    }
+
+    suspend fun exportBackupZip(outputStream: OutputStream): LifeAtlasBackupResult {
+        val exportedAt = System.currentTimeMillis()
+        val exportJson = exportJson()
+        val mediaFiles = collectBackupMediaFiles()
+        val manifest = LifeAtlasBackupManifest(
+            schemaVersion = 1,
+            app = "LifeAtlas",
+            exportedAt = exportedAt,
+            jsonEntry = BackupEntries.dataJson,
+            mediaFiles = mediaFiles
+        )
+
+        ZipOutputStream(outputStream.buffered()).use { zip ->
+            zip.putTextEntry(BackupEntries.dataJson, exportJson)
+            zip.putTextEntry(BackupEntries.manifestJson, json.encodeToString(manifest))
+            mediaFiles.forEach { media ->
+                val file = media.sourcePath.toFile()
+                if (file.isFile) {
+                    zip.putNextEntry(ZipEntry(media.entryName))
+                    file.inputStream().use { input -> input.copyTo(zip) }
+                    zip.closeEntry()
+                }
+            }
+        }
+
+        return LifeAtlasBackupResult(
+            recordCount = memoryRecordDao.getAll().size,
+            photoCount = photoDao.getAll().size,
+            mediaFileCount = mediaFiles.size
+        )
     }
 
     suspend fun importJson(jsonText: String): LifeAtlasImportResult {
@@ -165,6 +201,53 @@ class LifeAtlasExportService(
         require(export.schemaVersion == 1) { "暂不支持该备份版本：${export.schemaVersion}" }
         return export
     }
+
+    private suspend fun collectBackupMediaFiles(): List<BackupMediaFile> {
+        return photoDao.getAll().flatMap { photo ->
+            listOfNotNull(
+                photo.thumbnailPath?.toBackupMediaFile(
+                    photoId = photo.id,
+                    kind = "thumbnail",
+                    entryName = "media/thumbnails/photo_${photo.id}.jpg"
+                ),
+                photo.compressedPath?.toBackupMediaFile(
+                    photoId = photo.id,
+                    kind = "compressed",
+                    entryName = "media/compressed/photo_${photo.id}.jpg"
+                )
+            )
+        }
+    }
+
+    private fun String.toBackupMediaFile(photoId: Long, kind: String, entryName: String): BackupMediaFile? {
+        val file = toFile()
+        if (!file.isFile) return null
+        return BackupMediaFile(
+            photoId = photoId,
+            kind = kind,
+            entryName = entryName,
+            sourcePath = this
+        )
+    }
+
+    private fun String.toFile(): File {
+        return if (startsWith("file:")) {
+            File(requireNotNull(android.net.Uri.parse(this).path))
+        } else {
+            File(this)
+        }
+    }
+}
+
+private object BackupEntries {
+    const val dataJson = "lifeatlas_export.json"
+    const val manifestJson = "backup_manifest.json"
+}
+
+private fun ZipOutputStream.putTextEntry(name: String, text: String) {
+    putNextEntry(ZipEntry(name))
+    write(text.toByteArray(Charsets.UTF_8))
+    closeEntry()
 }
 
 data class LifeAtlasImportResult(
@@ -180,4 +263,10 @@ data class LifeAtlasImportPreview(
     val photoCount: Int,
     val tagCount: Int,
     val recordTagCount: Int
+)
+
+data class LifeAtlasBackupResult(
+    val recordCount: Int,
+    val photoCount: Int,
+    val mediaFileCount: Int
 )

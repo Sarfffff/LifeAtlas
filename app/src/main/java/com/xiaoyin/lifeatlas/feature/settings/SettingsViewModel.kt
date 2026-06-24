@@ -17,9 +17,11 @@ import kotlinx.coroutines.withContext
 data class SettingsUiState(
     val localFirstEnabled: Boolean = true,
     val isExporting: Boolean = false,
+    val isExportingBackup: Boolean = false,
     val isImporting: Boolean = false,
     val isPreparingImport: Boolean = false,
     val pendingExportJson: String? = null,
+    val pendingBackupExport: Boolean = false,
     val pendingImportJson: String? = null,
     val importPreview: LifeAtlasImportPreview? = null,
     val message: String? = null
@@ -89,6 +91,41 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun onExportLaunchHandled() {
         _uiState.update { it.copy(pendingExportJson = null) }
+    }
+
+    fun prepareBackupExport() {
+        _uiState.update { it.copy(pendingBackupExport = true, message = null) }
+    }
+
+    fun writeBackupExport(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isExportingBackup = true, pendingBackupExport = false, message = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openOutputStream(uri)?.use { output ->
+                        exportService.exportBackupZip(output)
+                    } ?: error("无法打开备份包文件")
+                }
+            }.onSuccess { result ->
+                _uiState.update {
+                    it.copy(
+                        isExportingBackup = false,
+                        message = "备份包导出完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.mediaFileCount} 个媒体缓存文件"
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isExportingBackup = false,
+                        message = error.message ?: "备份包导出失败"
+                    )
+                }
+            }
+        }
+    }
+
+    fun onBackupExportLaunchHandled() {
+        _uiState.update { it.copy(pendingBackupExport = false) }
     }
 
     fun prepareImport(uri: Uri) {
