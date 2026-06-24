@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xiaoyin.lifeatlas.core.map.AmapMapView
+import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 
@@ -44,30 +47,18 @@ fun MapRoute(viewModel: MapViewModel = viewModel()) {
             shape = RoundedCornerShape(8.dp),
             colors = CardDefaults.cardColors(containerColor = AtlasMist)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "${uiState.locatedRecords.size}",
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "条记录已有坐标",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+            if (MapSdkConfig.isAmapConfigured) {
+                AmapMapView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                )
+            } else {
+                MapUnavailableContent()
             }
         }
         Text(
-            text = "当前先展示可用于地图 marker 的本地点位数据，后续接入地图 SDK 后会渲染为真实地图。",
+            text = "当前地图页已接入真实高德地图容器。带坐标记录会先保留在下方列表，后续模块再渲染为 marker。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
@@ -82,6 +73,32 @@ fun MapRoute(viewModel: MapViewModel = viewModel()) {
                     LocatedRecordCard(record = record)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MapUnavailableContent() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(260.dp)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "地图 Key 未配置",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "请在 local.properties 中配置 lifeatlas.amap.apiKey 后重新构建。",
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
