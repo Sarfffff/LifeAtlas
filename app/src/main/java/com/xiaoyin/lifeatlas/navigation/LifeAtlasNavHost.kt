@@ -21,6 +21,7 @@ import com.xiaoyin.lifeatlas.feature.record.AddRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.EditRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.RecordDetailRoute
 import com.xiaoyin.lifeatlas.feature.settings.SettingsRoute
+import com.xiaoyin.lifeatlas.feature.settings.TagManagementRoute
 import com.xiaoyin.lifeatlas.feature.timeline.TimelineRoute
 
 @Composable
@@ -88,7 +89,16 @@ fun LifeAtlasNavHost() {
                 )
             }
             composable(LifeAtlasDestination.Map.route) { MapRoute() }
-            composable(LifeAtlasDestination.Settings.route) { SettingsRoute() }
+            composable(LifeAtlasDestination.Settings.route) {
+                SettingsRoute(
+                    onTagManagementClick = {
+                        navController.navigate(LifeAtlasDestination.TagManagement.route)
+                    }
+                )
+            }
+            composable(LifeAtlasDestination.TagManagement.route) {
+                TagManagementRoute(onBack = { navController.popBackStack() })
+            }
             composable(
                 route = LifeAtlasDestination.RecordDetail.route,
                 arguments = listOf(

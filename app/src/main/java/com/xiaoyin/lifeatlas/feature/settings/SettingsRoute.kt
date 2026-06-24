@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
@@ -31,7 +32,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
+fun SettingsRoute(
+    onTagManagementClick: () -> Unit,
+    viewModel: SettingsViewModel = viewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -106,7 +110,12 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
         )
         SettingCard(
             title = "标签管理",
-            body = "后续支持标签重命名、删除和颜色设置。当前可在新增或编辑记录时填写标签。"
+            body = "查看当前已有标签。后续支持重命名、删除和颜色设置。",
+            trailing = {
+                OutlinedButton(onClick = onTagManagementClick) {
+                    Text("查看")
+                }
+            }
         )
         uiState.message?.let { message ->
             Text(
