@@ -25,8 +25,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -34,7 +36,7 @@ import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.core.time.formatDate
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -204,13 +206,7 @@ private fun TimelinePreviewCard(record: MemoryRecord, firstPhoto: Photo?, onClic
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             firstPhoto?.let { photo ->
-                AsyncImage(
-                    model = photo.displayUri,
-                    contentDescription = "记录首图",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(150.dp)
-                )
+                TimelinePhotoImage(photo = photo)
             }
             Text(
                 text = record.title,
@@ -227,6 +223,40 @@ private fun TimelinePreviewCard(record: MemoryRecord, firstPhoto: Photo?, onClic
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
             )
         }
+    }
+}
+
+@Composable
+private fun TimelinePhotoImage(photo: Photo) {
+    SubcomposeAsyncImage(
+        model = photo.displayUri,
+        contentDescription = "记录首图",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp),
+        loading = {
+            TimelinePhotoPlaceholder(text = "正在加载照片")
+        },
+        error = {
+            TimelinePhotoPlaceholder(text = "照片无法显示")
+        }
+    )
+}
+
+@Composable
+private fun TimelinePhotoPlaceholder(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

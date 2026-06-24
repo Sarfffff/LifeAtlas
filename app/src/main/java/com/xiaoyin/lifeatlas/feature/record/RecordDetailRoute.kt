@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,15 +31,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.core.model.Tag
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -162,22 +165,51 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags:
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(photos) { photo ->
                 Card(
+                    modifier = Modifier.width(220.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    AsyncImage(
-                        model = photo.displayUri,
-                        contentDescription = "记录照片",
-                        modifier = Modifier
-                            .height(160.dp)
-                            .fillMaxWidth()
-                    )
+                    DetailPhotoImage(photo = photo)
                 }
             }
         }
     }
     Spacer(modifier = Modifier.height(8.dp))
     Text(text = record.content.ifBlank { "暂无正文" }, style = MaterialTheme.typography.bodyLarge)
+}
+
+@Composable
+private fun DetailPhotoImage(photo: Photo) {
+    SubcomposeAsyncImage(
+        model = photo.displayUri,
+        contentDescription = "记录照片",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .height(160.dp)
+            .fillMaxWidth(),
+        loading = {
+            PhotoPlaceholder(text = "正在加载照片")
+        },
+        error = {
+            PhotoPlaceholder(text = "照片无法显示\n可编辑记录后重新选择")
+        }
+    )
+}
+
+@Composable
+private fun PhotoPlaceholder(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 @Composable
