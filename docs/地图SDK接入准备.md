@@ -13,6 +13,7 @@
 - 本地 Key 配置入口
 - Manifest Key 占位
 - 地图网络权限声明
+- 用户主动触发的前台定位权限声明
 - `BuildConfig` 配置注入
 - 地图供应商配置对象
 - 后续接入真实 SDK 的注意事项
@@ -37,16 +38,21 @@ lifeatlas.amap.apiKey=你的高德AndroidKey
 
 ## 已增加权限
 
-当前只增加地图展示所需的基础网络权限：
+当前已增加地图展示所需的基础网络权限：
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 ```
 
-暂不增加定位权限。
+当前位置模块已增加用户主动触发的前台定位权限：
 
-定位权限会在“当前位置”模块中单独实现，避免过早扩大权限范围。
+```xml
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+```
+
+当前不做后台定位，不申请后台定位权限。
 
 ## 已增加配置入口
 
@@ -97,8 +103,7 @@ gradle/libs.versions.toml
 本阶段暂不做：
 
 - 不提交真实 Key
-- 不申请定位权限
-- 不实现地图选点
+- 不做后台定位
 
 ## 验证方式
 
@@ -119,7 +124,7 @@ BUILD SUCCESSFUL
 下一步建议实现：
 
 ```text
-地图记录 marker 展示
+照片缓存增强
 ```
 
-可以把 Room 中已有经纬度的记录渲染成地图 marker，并保留下方列表作为辅助信息。
+可以为已选照片生成 App 私有缩略图，减少原始 URI 失效和大图加载带来的风险。
