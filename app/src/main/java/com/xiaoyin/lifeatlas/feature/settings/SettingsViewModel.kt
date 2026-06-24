@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
 import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class SettingsUiState(
+    val localFirstEnabled: Boolean = true,
     val isExporting: Boolean = false,
     val isImporting: Boolean = false,
     val pendingExportJson: String? = null,
@@ -22,9 +24,24 @@ data class SettingsUiState(
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val exportService = ExportServiceProvider.exportService(application)
+    private val settingsRepository = AppSettingsRepository(application)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState
+
+    init {
+        viewModelScope.launch {
+            settingsRepository.localFirstEnabled.collect { enabled ->
+                _uiState.update { it.copy(localFirstEnabled = enabled) }
+            }
+        }
+    }
+
+    fun onLocalFirstChange(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setLocalFirstEnabled(enabled)
+        }
+    }
 
     fun prepareExport() {
         viewModelScope.launch {

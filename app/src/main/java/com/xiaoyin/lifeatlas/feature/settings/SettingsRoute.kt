@@ -21,9 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,7 +29,6 @@ import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 
 @Composable
 fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
-    var localFirst by remember { mutableStateOf(true) }
     val uiState by viewModel.uiState.collectAsState()
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -69,7 +65,10 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
             title = "本地优先",
             body = "第一版不强制登录，不自动上传个人记录。",
             trailing = {
-                Switch(checked = localFirst, onCheckedChange = { localFirst = it })
+                Switch(
+                    checked = uiState.localFirstEnabled,
+                    onCheckedChange = viewModel::onLocalFirstChange
+                )
             }
         )
         SettingCard(
