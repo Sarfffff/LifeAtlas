@@ -6,5 +6,6 @@ keystore/
 *.jks
 *.keystore
 .gradle/
+.kotlin/
 build/
 app/build/
