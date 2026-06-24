@@ -34,6 +34,7 @@ import com.xiaoyin.lifeatlas.core.map.AmapMapPickerView
 import com.xiaoyin.lifeatlas.core.map.AmapReverseGeocoder
 import com.xiaoyin.lifeatlas.core.map.MapPickerPoint
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
+import com.xiaoyin.lifeatlas.core.map.ReverseGeocodeResult
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,18 +84,19 @@ fun MapPickerRoute(
                         longitude = location.longitude
                     )
                     selectedPoint = point
-                    message = "已定位到当前位置。"
+                    message = "已定位到当前位置，正在识别地点名称。"
                     resolveAddress(
                         point = point,
                         reverseGeocoder = reverseGeocoder,
                         coroutineScope = coroutineScope,
                         onResolvingChange = { isResolvingAddress = it },
+                        onMessage = { message = it },
                         onResolved = { resolvedPoint -> selectedPoint = resolvedPoint }
                     )
                 }
             }
         } else {
-            message = "未授予定位权限，仍可手动点击地图选点。"
+            message = "未授予定位权限。你仍然可以手动点击地图选点。"
         }
     }
 
@@ -152,12 +154,13 @@ fun MapPickerRoute(
                                 longitude = location.longitude
                             )
                             selectedPoint = point
-                            message = "已定位到当前位置。"
+                            message = "已定位到当前位置，正在识别地点名称。"
                             resolveAddress(
                                 point = point,
                                 reverseGeocoder = reverseGeocoder,
                                 coroutineScope = coroutineScope,
                                 onResolvingChange = { isResolvingAddress = it },
+                                onMessage = { message = it },
                                 onResolved = { resolvedPoint -> selectedPoint = resolvedPoint }
                             )
                         }
@@ -184,6 +187,7 @@ fun MapPickerRoute(
                     reverseGeocoder = reverseGeocoder,
                     coroutineScope = coroutineScope,
                     onResolvingChange = { isResolvingAddress = it },
+                    onMessage = { message = it },
                     onResolved = onPointConfirmed
                 )
             },
@@ -206,15 +210,37 @@ private fun resolveAddress(
     reverseGeocoder: AmapReverseGeocoder,
     coroutineScope: CoroutineScope,
     onResolvingChange: (Boolean) -> Unit,
+    onMessage: (String) -> Unit,
     onResolved: (MapPickerPoint) -> Unit
 ) {
     onResolvingChange(true)
     coroutineScope.launch {
-        val address = withContext(Dispatchers.IO) {
+        val result = withContext(Dispatchers.IO) {
             reverseGeocoder.reverseGeocode(point)
         }
         onResolvingChange(false)
-        onResolved(point.copy(address = address))
+        when (result) {
+            is ReverseGeocodeResult.Success -> {
+                onMessage("已识别地点名称。")
+                onResolved(point.copy(address = result.address))
+            }
+            ReverseGeocodeResult.AddressNotFound -> {
+                onMessage("已保留经纬度，但没有识别到明确地点名称。")
+                onResolved(point)
+            }
+            ReverseGeocodeResult.MissingKey -> {
+                onMessage("地图 Key 未配置，已保留经纬度。")
+                onResolved(point)
+            }
+            ReverseGeocodeResult.NetworkUnavailable -> {
+                onMessage("网络不可用，已保留经纬度，稍后可手动补充地点名称。")
+                onResolved(point)
+            }
+            ReverseGeocodeResult.ServiceUnavailable -> {
+                onMessage("地点识别服务暂时不可用，已保留经纬度。")
+                onResolved(point)
+            }
+        }
     }
 }
 
