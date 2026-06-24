@@ -60,7 +60,6 @@ app/src/main/java/com/xiaoyin/lifeatlas/core/map/MapSdkConfig.kt
 
 - `MapSdkConfig.provider`
 - `MapSdkConfig.isAmapConfigured`
-- `MapSdkConfig.amapApiKey`
 - `MapProvider.Amap`
 
 后续接入地图 SDK 时，UI 和业务层应优先依赖项目内的地图配置和抽象模型，不要把高德 SDK 对象直接扩散到业务层。
@@ -76,19 +75,30 @@ com.xiaoyin.lifeatlas
 
 3. 配置发布签名 SHA1。
 4. 在 `local.properties` 增加 `lifeatlas.amap.apiKey`。
-5. 接入高德地图 SDK 依赖。
-6. 在调用任何高德 SDK 接口前完成隐私合规初始化。
-7. 在隐私政策中说明地图服务、网络请求和定位相关数据处理。
+5. 在调用任何高德 SDK 接口前完成隐私合规初始化。
+6. 在隐私政策中说明地图服务、网络请求和定位相关数据处理。
+
+## 已接入依赖
+
+当前已固定接入：
+
+```text
+com.amap.api:3dmap:10.0.600
+```
+
+依赖版本统一记录在：
+
+```text
+gradle/libs.versions.toml
+```
 
 ## 暂不做
 
 本阶段暂不做：
 
 - 不提交真实 Key
-- 不接入高德 SDK 依赖
-- 不调用高德 SDK 接口
-- 不申请定位权限
 - 不替换地图页 UI
+- 不申请定位权限
 - 不实现地图选点
 
 ## 验证方式
@@ -110,7 +120,7 @@ BUILD SUCCESSFUL
 下一步建议实现：
 
 ```text
-地图配置状态展示
+地图页真实地图展示
 ```
 
-可以在地图页或设置页显示当前是否已经配置高德 Key，便于开发期排查地图无法加载的问题。
+可以先在地图页加载真实高德地图，再逐步叠加 Room 记录 marker、地图选点和当前位置能力。
