@@ -27,6 +27,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         val amapApiKey = localProperty("lifeatlas.amap.apiKey")
         manifestPlaceholders["AMAP_API_KEY"] = amapApiKey
@@ -89,4 +90,10 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
 
     kapt(libs.androidx.room.compiler)
+
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.room.testing)
 }
