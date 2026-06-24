@@ -62,6 +62,10 @@ fun TimelineRoute(
             onQueryChange = viewModel::onSearchQueryChange,
             onClear = viewModel::clearSearchQuery
         )
+        TimelineSearchResultHint(
+            query = uiState.searchQuery,
+            resultCount = records.size
+        )
         TimelineTagFilter(
             tags = uiState.tags,
             selectedTagId = uiState.selectedTagId,
@@ -91,6 +95,17 @@ fun TimelineRoute(
             }
         }
     }
+}
+
+@Composable
+private fun TimelineSearchResultHint(query: String, resultCount: Int) {
+    if (query.isBlank()) return
+
+    Text(
+        text = "找到 $resultCount 条匹配记录",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+    )
 }
 
 @Composable
