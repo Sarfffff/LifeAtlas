@@ -176,8 +176,22 @@ private fun TimelinePreviewCard(record: MemoryRecord, firstPhoto: Photo?, onClic
                 text = listOfNotNull(record.locationName, record.recordTime.formatDate()).joinToString(" | "),
                 style = MaterialTheme.typography.bodySmall
             )
-            Text(text = record.content, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = record.content.toTimelineSummary(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+            )
         }
+    }
+}
+
+private fun String.toTimelineSummary(maxLength: Int = 80): String {
+    val normalized = trim().replace(Regex("\\s+"), " ")
+    if (normalized.isBlank()) return "暂无正文"
+    return if (normalized.length <= maxLength) {
+        normalized
+    } else {
+        "${normalized.take(maxLength)}..."
     }
 }
 
