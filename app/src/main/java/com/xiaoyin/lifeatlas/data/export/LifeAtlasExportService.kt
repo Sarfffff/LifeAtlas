@@ -13,8 +13,10 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.InputStream
 import java.io.OutputStream
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 class LifeAtlasExportService(
@@ -191,7 +193,48 @@ class LifeAtlasExportService(
             recordCount = export.records.size,
             photoCount = export.photos.size,
             tagCount = export.tags.size,
-            recordTagCount = export.recordTags.size
+            recordTagCount = export.recordTags.size,
+            mediaFileCount = null,
+            backupKind = BackupKind.Json
+        )
+    }
+
+    fun previewBackupZip(inputStream: InputStream): LifeAtlasImportPreview {
+        var exportJson: String? = null
+        var manifestJson: String? = null
+        val mediaEntryNames = mutableSetOf<String>()
+
+        ZipInputStream(inputStream.buffered()).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory) {
+                    when (entry.name) {
+                        BackupEntries.dataJson -> exportJson = zip.readEntryText()
+                        BackupEntries.manifestJson -> manifestJson = zip.readEntryText()
+                        else -> if (entry.name.startsWith("media/")) {
+                            mediaEntryNames += entry.name
+                        }
+                    }
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+
+        val manifest = manifestJson?.let { decodeAndValidateManifest(it) }
+            ?: error("备份包缺少 ${BackupEntries.manifestJson}")
+        val export = decodeAndValidate(exportJson ?: error("备份包缺少 ${BackupEntries.dataJson}"))
+        require(manifest.jsonEntry == BackupEntries.dataJson) { "备份包数据入口不受支持：${manifest.jsonEntry}" }
+
+        return LifeAtlasImportPreview(
+            schemaVersion = export.schemaVersion,
+            exportedAt = manifest.exportedAt,
+            recordCount = export.records.size,
+            photoCount = export.photos.size,
+            tagCount = export.tags.size,
+            recordTagCount = export.recordTags.size,
+            mediaFileCount = mediaEntryNames.size,
+            backupKind = BackupKind.Zip
         )
     }
 
@@ -200,6 +243,13 @@ class LifeAtlasExportService(
         require(export.app == "LifeAtlas") { "不是岁迹导出的备份文件" }
         require(export.schemaVersion == 1) { "暂不支持该备份版本：${export.schemaVersion}" }
         return export
+    }
+
+    private fun decodeAndValidateManifest(jsonText: String): LifeAtlasBackupManifest {
+        val manifest = json.decodeFromString<LifeAtlasBackupManifest>(jsonText)
+        require(manifest.app == "LifeAtlas") { "不是岁迹导出的备份包" }
+        require(manifest.schemaVersion == 1) { "暂不支持该备份包版本：${manifest.schemaVersion}" }
+        return manifest
     }
 
     private suspend fun collectBackupMediaFiles(): List<BackupMediaFile> {
@@ -250,6 +300,10 @@ private fun ZipOutputStream.putTextEntry(name: String, text: String) {
     closeEntry()
 }
 
+private fun ZipInputStream.readEntryText(): String {
+    return readBytes().toString(Charsets.UTF_8)
+}
+
 data class LifeAtlasImportResult(
     val recordCount: Int,
     val photoCount: Int,
@@ -262,8 +316,15 @@ data class LifeAtlasImportPreview(
     val recordCount: Int,
     val photoCount: Int,
     val tagCount: Int,
-    val recordTagCount: Int
+    val recordTagCount: Int,
+    val mediaFileCount: Int?,
+    val backupKind: BackupKind
 )
+
+enum class BackupKind {
+    Json,
+    Zip
+}
 
 data class LifeAtlasBackupResult(
     val recordCount: Int,

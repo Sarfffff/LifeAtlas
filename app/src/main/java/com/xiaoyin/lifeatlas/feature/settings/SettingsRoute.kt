@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 import java.time.Instant
@@ -120,10 +121,10 @@ fun SettingsRoute(
         )
         SettingCard(
             title = "数据导入",
-            body = "从岁迹 JSON 备份恢复记录、照片 URI、标签和关联关系。",
+            body = "预览 JSON 或完整备份包；当前 JSON 可恢复，zip 备份包先支持预览。",
             trailing = {
                 Button(
-                    onClick = { importLauncher.launch(arrayOf("application/json", "text/*")) },
+                    onClick = { importLauncher.launch(arrayOf("application/json", "text/*", "application/zip", "application/octet-stream")) },
                     enabled = !uiState.isImporting && !uiState.isPreparingImport
                 ) {
                     Text(
@@ -170,12 +171,22 @@ fun SettingsRoute(
                     Text("照片引用：${preview.photoCount} 张")
                     Text("标签：${preview.tagCount} 个")
                     Text("标签关联：${preview.recordTagCount} 条")
-                    Text("导入会按备份文件恢复数据。同 ID 的本地记录会被覆盖，建议先导出当前数据。")
+                    preview.mediaFileCount?.let { mediaFileCount ->
+                        Text("媒体缓存文件：$mediaFileCount 个")
+                    }
+                    if (preview.backupKind == BackupKind.Zip) {
+                        Text("完整备份包恢复将在下一步接入，当前仅支持预览摘要。")
+                    } else {
+                        Text("导入会按备份文件恢复数据。同 ID 的本地记录会被覆盖，建议先导出当前数据。")
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = viewModel::confirmImport) {
-                    Text("确认导入")
+                TextButton(
+                    onClick = viewModel::confirmImport,
+                    enabled = preview.backupKind == BackupKind.Json
+                ) {
+                    Text(if (preview.backupKind == BackupKind.Zip) "暂不支持导入" else "确认导入")
                 }
             },
             dismissButton = {

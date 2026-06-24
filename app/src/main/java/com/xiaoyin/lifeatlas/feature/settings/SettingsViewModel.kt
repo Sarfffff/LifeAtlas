@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
 import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
 import com.xiaoyin.lifeatlas.data.export.LifeAtlasImportPreview
@@ -140,8 +141,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val jsonText = readTextFromUri(uri)
-                    jsonText to exportService.previewJson(jsonText)
+                    when (uri.detectBackupInputKind()) {
+                        BackupInputKind.Zip -> null to previewZipFromUri(uri)
+                        BackupInputKind.Json -> {
+                            val jsonText = readTextFromUri(uri)
+                            jsonText to exportService.previewJson(jsonText)
+                        }
+                    }
                 }
             }.onSuccess { (jsonText, preview) ->
                 _uiState.update {
@@ -164,7 +170,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun confirmImport() {
-        val jsonText = _uiState.value.pendingImportJson ?: return
+        val state = _uiState.value
+        if (state.importPreview?.backupKind == BackupKind.Zip) {
+            _uiState.update { it.copy(message = "完整备份包恢复会在下一步接入，当前只支持预览。") }
+            return
+        }
+        val jsonText = state.pendingImportJson ?: return
 
         viewModelScope.launch {
             _uiState.update {
@@ -212,4 +223,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             input.bufferedReader(Charsets.UTF_8).readText()
         } ?: error("无法打开导入文件")
     }
+
+    private fun previewZipFromUri(uri: Uri): LifeAtlasImportPreview {
+        return getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
+            exportService.previewBackupZip(input)
+        } ?: error("无法打开备份包文件")
+    }
+
+    private fun Uri.detectBackupInputKind(): BackupInputKind {
+        val mimeType = getApplication<Application>().contentResolver.getType(this).orEmpty().lowercase()
+        val name = lastPathSegment.orEmpty().lowercase()
+        return if (mimeType.contains("zip") || name.endsWith(".zip")) {
+            BackupInputKind.Zip
+        } else {
+            BackupInputKind.Json
+        }
+    }
+}
+
+private enum class BackupInputKind {
+    Json,
+    Zip
 }
