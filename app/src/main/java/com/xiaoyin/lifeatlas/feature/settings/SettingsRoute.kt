@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 import java.time.Instant
 import java.time.ZoneId
@@ -116,6 +117,10 @@ fun SettingsRoute(
                     Text("查看")
                 }
             }
+        )
+        SettingCard(
+            title = "地图配置",
+            body = "供应商：${MapSdkConfig.provider.displayName}\nKey 状态：${if (MapSdkConfig.isAmapConfigured) "已配置" else "未配置"}"
         )
         uiState.message?.let { message ->
             Text(
