@@ -17,6 +17,7 @@ import com.amap.api.maps.model.MarkerOptions
 @Composable
 fun AmapMapView(
     markers: List<MapMarkerItem>,
+    onMarkerClick: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -47,14 +48,29 @@ fun AmapMapView(
         modifier = modifier,
         factory = { mapView },
         update = { view ->
-            view.renderMarkers(markers)
+            view.renderMarkers(
+                markers = markers,
+                onMarkerClick = onMarkerClick
+            )
         }
     )
 }
 
-private fun MapView.renderMarkers(markers: List<MapMarkerItem>) {
+private fun MapView.renderMarkers(
+    markers: List<MapMarkerItem>,
+    onMarkerClick: (Long) -> Unit
+) {
     val amap = map
     amap.clear()
+    amap.setOnMarkerClickListener { marker ->
+        val recordId = marker.`object` as? Long
+        if (recordId != null) {
+            onMarkerClick(recordId)
+            true
+        } else {
+            false
+        }
+    }
 
     val firstMarkerPosition = markers.firstOrNull()?.let { marker ->
         LatLng(marker.latitude, marker.longitude)
@@ -66,7 +82,7 @@ private fun MapView.renderMarkers(markers: List<MapMarkerItem>) {
                 .position(LatLng(marker.latitude, marker.longitude))
                 .title(marker.title)
                 .snippet(marker.snippet)
-        )
+        )?.`object` = marker.id
     }
 
     if (firstMarkerPosition != null) {

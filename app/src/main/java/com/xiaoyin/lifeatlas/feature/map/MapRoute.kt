@@ -31,7 +31,10 @@ import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 
 @Composable
-fun MapRoute(viewModel: MapViewModel = viewModel()) {
+fun MapRoute(
+    onRecordClick: (Long) -> Unit,
+    viewModel: MapViewModel = viewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
     val markerItems = uiState.locatedRecords.toMapMarkerItems()
 
@@ -52,6 +55,7 @@ fun MapRoute(viewModel: MapViewModel = viewModel()) {
             if (MapSdkConfig.isAmapConfigured) {
                 AmapMapView(
                     markers = markerItems,
+                    onMarkerClick = onRecordClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(260.dp)
@@ -61,7 +65,7 @@ fun MapRoute(viewModel: MapViewModel = viewModel()) {
             }
         }
         Text(
-            text = "当前地图页会把带坐标记录渲染为 marker，下方列表保留为辅助信息。",
+            text = "当前地图页会把带坐标记录渲染为 marker，点击 marker 可查看记录详情。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )

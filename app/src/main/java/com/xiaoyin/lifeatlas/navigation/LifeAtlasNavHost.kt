@@ -88,7 +88,13 @@ fun LifeAtlasNavHost() {
                     }
                 )
             }
-            composable(LifeAtlasDestination.Map.route) { MapRoute() }
+            composable(LifeAtlasDestination.Map.route) {
+                MapRoute(
+                    onRecordClick = { recordId ->
+                        navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
+                    }
+                )
+            }
             composable(LifeAtlasDestination.Settings.route) {
                 SettingsRoute(
                     onTagManagementClick = {
