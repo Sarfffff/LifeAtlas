@@ -26,12 +26,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.map.AmapMapView
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
+import com.xiaoyin.lifeatlas.core.map.MapMarkerItem
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 
 @Composable
 fun MapRoute(viewModel: MapViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    val markerItems = uiState.locatedRecords.toMapMarkerItems()
 
     Column(
         modifier = Modifier
@@ -49,6 +51,7 @@ fun MapRoute(viewModel: MapViewModel = viewModel()) {
         ) {
             if (MapSdkConfig.isAmapConfigured) {
                 AmapMapView(
+                    markers = markerItems,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(260.dp)
@@ -58,7 +61,7 @@ fun MapRoute(viewModel: MapViewModel = viewModel()) {
             }
         }
         Text(
-            text = "当前地图页已接入真实高德地图容器。带坐标记录会先保留在下方列表，后续模块再渲染为 marker。",
+            text = "当前地图页会把带坐标记录渲染为 marker，下方列表保留为辅助信息。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
@@ -73,6 +76,24 @@ fun MapRoute(viewModel: MapViewModel = viewModel()) {
                     LocatedRecordCard(record = record)
                 }
             }
+        }
+    }
+}
+
+private fun List<MemoryRecord>.toMapMarkerItems(): List<MapMarkerItem> {
+    return mapNotNull { record ->
+        val latitude = record.latitude
+        val longitude = record.longitude
+        if (latitude == null || longitude == null) {
+            null
+        } else {
+            MapMarkerItem(
+                id = record.id,
+                latitude = latitude,
+                longitude = longitude,
+                title = record.title,
+                snippet = record.locationName ?: "$latitude, $longitude"
+            )
         }
     }
 }

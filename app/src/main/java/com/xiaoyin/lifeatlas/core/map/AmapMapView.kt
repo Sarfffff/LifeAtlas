@@ -9,10 +9,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.amap.api.maps.CameraUpdateFactory
 import com.amap.api.maps.MapView
+import com.amap.api.maps.model.LatLng
+import com.amap.api.maps.model.MarkerOptions
 
 @Composable
-fun AmapMapView(modifier: Modifier = Modifier) {
+fun AmapMapView(
+    markers: List<MapMarkerItem>,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapView = remember {
@@ -26,7 +32,6 @@ fun AmapMapView(modifier: Modifier = Modifier) {
             when (event) {
                 Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
                 else -> Unit
             }
         }
@@ -40,6 +45,31 @@ fun AmapMapView(modifier: Modifier = Modifier) {
 
     AndroidView(
         modifier = modifier,
-        factory = { mapView }
+        factory = { mapView },
+        update = { view ->
+            view.renderMarkers(markers)
+        }
     )
+}
+
+private fun MapView.renderMarkers(markers: List<MapMarkerItem>) {
+    val amap = map
+    amap.clear()
+
+    val firstMarkerPosition = markers.firstOrNull()?.let { marker ->
+        LatLng(marker.latitude, marker.longitude)
+    }
+
+    markers.forEach { marker ->
+        amap.addMarker(
+            MarkerOptions()
+                .position(LatLng(marker.latitude, marker.longitude))
+                .title(marker.title)
+                .snippet(marker.snippet)
+        )
+    }
+
+    if (firstMarkerPosition != null) {
+        amap.moveCamera(CameraUpdateFactory.newLatLngZoom(firstMarkerPosition, 12f))
+    }
 }
