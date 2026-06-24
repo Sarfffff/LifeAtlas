@@ -13,8 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class RecordDetailUiState(
@@ -22,6 +22,13 @@ data class RecordDetailUiState(
     val photos: List<Photo> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val isDeleting: Boolean = false,
+    val errorMessage: String? = null,
+    val deleted: Boolean = false
+)
+
+private data class DeleteOperationState(
+    val isDeleting: Boolean = false,
+    val errorMessage: String? = null,
     val deleted: Boolean = false
 )
 
@@ -34,12 +41,22 @@ class RecordDetailViewModel(
         savedStateHandle.get<Long>(LifeAtlasDestination.RecordDetail.recordIdArg)
     )
 
+    private val deleteOperationState = MutableStateFlow(DeleteOperationState())
+
     val uiState: StateFlow<RecordDetailUiState> = combine(
         repository.observeRecord(recordId),
         repository.observePhotos(recordId),
-        repository.observeTags(recordId)
-    ) { record, photos, tags ->
-        RecordDetailUiState(record = record, photos = photos, tags = tags)
+        repository.observeTags(recordId),
+        deleteOperationState
+    ) { record, photos, tags, deleteState ->
+        RecordDetailUiState(
+            record = record,
+            photos = photos,
+            tags = tags,
+            isDeleting = deleteState.isDeleting,
+            errorMessage = deleteState.errorMessage,
+            deleted = deleteState.deleted
+        )
     }
         .stateIn(
             scope = viewModelScope,
@@ -47,13 +64,33 @@ class RecordDetailViewModel(
             initialValue = RecordDetailUiState()
         )
 
-    private val _deleteState = MutableStateFlow(false)
-    val deleted: StateFlow<Boolean> = _deleteState
-
     fun deleteRecord() {
+        if (deleteOperationState.value.isDeleting) return
+
         viewModelScope.launch {
-            repository.deleteRecord(recordId)
-            _deleteState.value = true
+            deleteOperationState.update { it.copy(isDeleting = true, errorMessage = null) }
+            runCatching {
+                repository.deleteRecord(recordId)
+            }.onSuccess {
+                deleteOperationState.update {
+                    it.copy(
+                        isDeleting = false,
+                        deleted = true
+                    )
+                }
+            }.onFailure { error ->
+                deleteOperationState.update {
+                    it.copy(
+                        isDeleting = false,
+                        errorMessage = error.toDeleteErrorMessage()
+                    )
+                }
+            }
         }
     }
+}
+
+private fun Throwable.toDeleteErrorMessage(): String {
+    return message?.takeIf { it.isNotBlank() }?.let { "删除失败：$it" }
+        ?: "删除失败，请稍后重试。记录仍保留在当前页面。"
 }

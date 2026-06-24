@@ -54,11 +54,10 @@ fun RecordDetailRoute(
     viewModel: RecordDetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val deleted by viewModel.deleted.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(deleted) {
-        if (deleted) {
+    LaunchedEffect(uiState.deleted) {
+        if (uiState.deleted) {
             onDeleted()
         }
     }
@@ -80,13 +79,27 @@ fun RecordDetailRoute(
                 Text("返回")
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { record?.let { onEdit(it.id) } }, enabled = record != null) {
+                OutlinedButton(
+                    onClick = { record?.let { onEdit(it.id) } },
+                    enabled = record != null && !uiState.isDeleting
+                ) {
                     Text("编辑")
                 }
-                Button(onClick = { showDeleteDialog = true }, enabled = record != null) {
-                    Text("删除")
+                Button(
+                    onClick = { showDeleteDialog = true },
+                    enabled = record != null && !uiState.isDeleting
+                ) {
+                    Text(if (uiState.isDeleting) "删除中" else "删除")
                 }
             }
+        }
+
+        uiState.errorMessage?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
         }
 
         if (record == null) {
@@ -103,6 +116,7 @@ fun RecordDetailRoute(
             text = { Text("这条记录会从本地数据库中删除，关联照片记录也会一起删除。此操作暂时无法撤销。") },
             confirmButton = {
                 TextButton(
+                    enabled = !uiState.isDeleting,
                     onClick = {
                         showDeleteDialog = false
                         viewModel.deleteRecord()
