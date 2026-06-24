@@ -19,15 +19,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xiaoyin.lifeatlas.core.map.AmapMapPickerView
+import com.xiaoyin.lifeatlas.core.map.AmapReverseGeocoder
 import com.xiaoyin.lifeatlas.core.map.MapPickerPoint
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MapPickerRoute(
@@ -36,6 +41,8 @@ fun MapPickerRoute(
     onBack: () -> Unit,
     onPointConfirmed: (MapPickerPoint) -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val reverseGeocoder = remember { AmapReverseGeocoder() }
     var selectedPoint by remember(initialLatitude, initialLongitude) {
         mutableStateOf(
             if (initialLatitude != null && initialLongitude != null) {
@@ -48,6 +55,7 @@ fun MapPickerRoute(
             }
         )
     }
+    var isResolvingAddress by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -76,16 +84,28 @@ fun MapPickerRoute(
         }
         Text(
             text = selectedPoint?.let { point ->
-                "已选择：${point.latitude}, ${point.longitude}"
+                point.address?.let { address ->
+                    "已选择：$address\n${point.latitude}, ${point.longitude}"
+                } ?: "已选择：${point.latitude}, ${point.longitude}"
             } ?: "点击地图选择记录位置。",
             style = MaterialTheme.typography.bodyMedium
         )
         Button(
-            onClick = { selectedPoint?.let(onPointConfirmed) },
-            enabled = selectedPoint != null,
+            onClick = {
+                val point = selectedPoint ?: return@Button
+                isResolvingAddress = true
+                coroutineScope.launch {
+                    val address = withContext(Dispatchers.IO) {
+                        reverseGeocoder.reverseGeocode(point)
+                    }
+                    isResolvingAddress = false
+                    onPointConfirmed(point.copy(address = address))
+                }
+            },
+            enabled = selectedPoint != null && !isResolvingAddress,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("使用此位置")
+            Text(if (isResolvingAddress) "正在识别地点" else "使用此位置")
         }
         OutlinedButton(
             onClick = onBack,

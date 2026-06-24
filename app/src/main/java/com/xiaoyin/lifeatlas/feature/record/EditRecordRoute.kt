@@ -43,6 +43,7 @@ fun EditRecordRoute(
     onMapPickerClick: (Double?, Double?) -> Unit,
     pickedLatitude: Double? = null,
     pickedLongitude: Double? = null,
+    pickedAddress: String? = null,
     onMapPickerResultHandled: () -> Unit = {},
     viewModel: EditRecordViewModel = viewModel()
 ) {
@@ -62,9 +63,9 @@ fun EditRecordRoute(
         }
     }
 
-    LaunchedEffect(pickedLatitude, pickedLongitude) {
+    LaunchedEffect(pickedLatitude, pickedLongitude, pickedAddress) {
         if (pickedLatitude != null && pickedLongitude != null) {
-            viewModel.onMapPointSelected(pickedLatitude, pickedLongitude)
+            viewModel.onMapPointSelected(pickedLatitude, pickedLongitude, pickedAddress)
             onMapPickerResultHandled()
         }
     }

@@ -39,6 +39,7 @@ sealed class LifeAtlasDestination(
         const val longitudeArg = "lng"
         const val resultLatitudeKey = "map_picker_result_latitude"
         const val resultLongitudeKey = "map_picker_result_longitude"
+        const val resultAddressKey = "map_picker_result_address"
 
         fun createRoute(latitude: Double?, longitude: Double?): String {
             val latitudeValue = latitude?.toString().orEmpty()

@@ -42,6 +42,7 @@ fun AddRecordRoute(
     onMapPickerClick: (Double?, Double?) -> Unit,
     pickedLatitude: Double? = null,
     pickedLongitude: Double? = null,
+    pickedAddress: String? = null,
     onMapPickerResultHandled: () -> Unit = {},
     viewModel: AddRecordViewModel = viewModel()
 ) {
@@ -61,9 +62,9 @@ fun AddRecordRoute(
         }
     }
 
-    LaunchedEffect(pickedLatitude, pickedLongitude) {
+    LaunchedEffect(pickedLatitude, pickedLongitude, pickedAddress) {
         if (pickedLatitude != null && pickedLongitude != null) {
-            viewModel.onMapPointSelected(pickedLatitude, pickedLongitude)
+            viewModel.onMapPointSelected(pickedLatitude, pickedLongitude, pickedAddress)
             onMapPickerResultHandled()
         }
     }
