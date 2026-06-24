@@ -44,6 +44,7 @@ fun EditRecordRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
+    var mapPickerMessage by remember { mutableStateOf<String?>(null) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = uiState.recordTime)
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -116,6 +117,19 @@ fun EditRecordRoute(
                     label = { Text("经度") },
                     placeholder = { Text("114.3") },
                     singleLine = true
+                )
+            }
+            OutlinedButton(
+                onClick = { mapPickerMessage = "地图选点会在后续接入真实地图 SDK 后开放。" },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("地图选点")
+            }
+            mapPickerMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
                 )
             }
             OutlinedTextField(

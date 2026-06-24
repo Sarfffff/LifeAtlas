@@ -15,6 +15,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
@@ -42,6 +43,7 @@ fun AddRecordRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
+    var mapPickerMessage by remember { mutableStateOf<String?>(null) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = uiState.recordTime)
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -110,6 +112,19 @@ fun AddRecordRoute(
                 label = { Text("经度") },
                 placeholder = { Text("114.3") },
                 singleLine = true
+            )
+        }
+        OutlinedButton(
+            onClick = { mapPickerMessage = "地图选点会在后续接入真实地图 SDK 后开放。" },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("地图选点")
+        }
+        mapPickerMessage?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
             )
         }
         OutlinedTextField(
