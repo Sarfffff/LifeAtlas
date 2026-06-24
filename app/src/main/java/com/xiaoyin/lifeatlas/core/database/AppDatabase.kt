@@ -28,7 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
-        private val migration1To2 = object : Migration(1, 2) {
+        val migration1To2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -50,7 +50,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private val migration2To3 = object : Migration(2, 3) {
+        val migration2To3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
