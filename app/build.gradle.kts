@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +7,15 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use(::load)
+    }
+}
+
+fun localProperty(name: String): String = localProperties.getProperty(name).orEmpty()
 
 android {
     namespace = "com.xiaoyin.lifeatlas"
@@ -16,6 +27,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        val amapApiKey = localProperty("lifeatlas.amap.apiKey")
+        manifestPlaceholders["AMAP_API_KEY"] = amapApiKey
+        buildConfigField("String", "AMAP_API_KEY", "\"${amapApiKey.escapeForBuildConfig()}\"")
+        buildConfigField("boolean", "AMAP_CONFIGURED", amapApiKey.isNotBlank().toString())
 
         javaCompileOptions {
             annotationProcessorOptions {
@@ -45,8 +61,12 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
+
+fun String.escapeForBuildConfig(): String =
+    replace("\\", "\\\\").replace("\"", "\\\"")
 
 dependencies {
     implementation(libs.androidx.core.ktx)
