@@ -16,7 +16,7 @@ data class HomeUiState(
     val photoCount: Int = 0,
     val tagCount: Int = 0,
     val locatedRecordCount: Int = 0,
-    val latestRecord: MemoryRecord? = null
+    val recentRecords: List<MemoryRecord> = emptyList()
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -32,7 +32,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             photoCount = photoCount,
             tagCount = tags.size,
             locatedRecordCount = records.count { it.latitude != null && it.longitude != null },
-            latestRecord = records.firstOrNull()
+            recentRecords = records.take(3)
         )
     }
         .stateIn(

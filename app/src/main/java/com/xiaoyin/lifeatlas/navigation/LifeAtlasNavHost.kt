@@ -63,7 +63,7 @@ fun LifeAtlasNavHost() {
         ) {
             composable(LifeAtlasDestination.Home.route) {
                 HomeRoute(
-                    onLatestRecordClick = { recordId ->
+                    onRecordClick = { recordId ->
                         navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
                     }
                 )

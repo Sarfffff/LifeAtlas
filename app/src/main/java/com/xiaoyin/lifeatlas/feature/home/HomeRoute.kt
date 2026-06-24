@@ -28,7 +28,7 @@ import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
 
 @Composable
 fun HomeRoute(
-    onLatestRecordClick: (Long) -> Unit,
+    onRecordClick: (Long) -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -67,9 +67,9 @@ fun HomeRoute(
             body = "当前已有 ${uiState.locatedRecordCount} 条记录填写了坐标，可用于后续生成地图 marker。"
         )
 
-        LatestRecordCard(
-            record = uiState.latestRecord,
-            onClick = { recordId -> onLatestRecordClick(recordId) }
+        RecentRecordsCard(
+            records = uiState.recentRecords,
+            onRecordClick = onRecordClick
         )
     }
 }
@@ -104,22 +104,48 @@ private fun SectionCard(title: String, body: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun LatestRecordCard(record: MemoryRecord?, onClick: (Long) -> Unit) {
-    SectionCard(
-        title = "最近记录",
-        body = if (record == null) {
-            "暂无记录。新增第一条人生节点后，这里会显示最近发生的记录。"
-        } else {
-            listOfNotNull(
-                record.title,
-                record.locationName,
-                record.recordTime.formatDate()
-            ).joinToString(" | ")
-        },
-        modifier = if (record == null) {
-            Modifier
-        } else {
-            Modifier.clickable { onClick(record.id) }
+private fun RecentRecordsCard(records: List<MemoryRecord>, onRecordClick: (Long) -> Unit) {
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(text = "最近记录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            if (records.isEmpty()) {
+                Text(
+                    text = "暂无记录。新增第一条人生节点后，这里会显示最近发生的记录。",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                records.forEach { record ->
+                    RecentRecordRow(record = record, onClick = { onRecordClick(record.id) })
+                }
+            }
         }
-    )
+    }
+}
+
+@Composable
+private fun RecentRecordRow(record: MemoryRecord, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = record.title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = listOfNotNull(record.locationName, record.recordTime.formatDate()).joinToString(" | "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+        )
+    }
 }
