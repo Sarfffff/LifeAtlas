@@ -3,13 +3,16 @@ package com.xiaoyin.lifeatlas.feature.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,9 +30,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xiaoyin.lifeatlas.R
 import com.xiaoyin.lifeatlas.BuildConfig
 import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
@@ -101,6 +107,7 @@ fun SettingsRoute(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
+        TravelerProfileCard()
         SettingGroup(title = "账号与本地", tint = WildernessMeadow) {
             SettingCard(
                 title = "本地优先",
@@ -241,6 +248,44 @@ private fun Long.formatDateTime(): String {
     return Instant.ofEpochMilli(this)
         .atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+}
+
+@Composable
+private fun TravelerProfileCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.mascot_companion),
+                contentDescription = "旷野小旅人",
+                modifier = Modifier
+                    .size(72.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "旷野小旅人", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = WildernessTeal)
+                Text(
+                    text = "记录生活，探索世界",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+                )
+            }
+            Text(
+                text = "Lv.1",
+                style = MaterialTheme.typography.labelLarge,
+                color = WildernessTeal,
+                modifier = Modifier
+                    .background(WildernessWildflower.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+        }
+    }
 }
 
 @Composable

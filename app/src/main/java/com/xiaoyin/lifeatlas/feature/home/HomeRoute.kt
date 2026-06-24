@@ -21,13 +21,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.Image
+import com.xiaoyin.lifeatlas.R
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.time.formatDate
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
@@ -85,7 +89,7 @@ private fun WildernessHero() {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(210.dp)
+                .height(230.dp)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
@@ -97,7 +101,10 @@ private fun WildernessHero() {
                 )
                 .padding(22.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.align(Alignment.TopStart),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Text(
                     text = "岁迹",
                     style = MaterialTheme.typography.headlineLarge,
@@ -118,7 +125,7 @@ private fun WildernessHero() {
             }
             Box(
                 modifier = Modifier
-                    .padding(top = 148.dp)
+                    .padding(top = 168.dp)
                     .fillMaxWidth()
                     .height(18.dp)
                     .clip(RoundedCornerShape(50))
@@ -131,6 +138,13 @@ private fun WildernessHero() {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = 60.dp, topEnd = 60.dp))
                     .background(WildernessTeal.copy(alpha = 0.24f))
+            )
+            Image(
+                painter = painterResource(id = R.drawable.mascot_companion),
+                contentDescription = "岁迹小旅人",
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .height(130.dp)
             )
         }
     }
