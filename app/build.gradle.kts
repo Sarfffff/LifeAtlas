@@ -17,6 +17,12 @@ val localProperties = Properties().apply {
 
 fun localProperty(name: String): String = localProperties.getProperty(name).orEmpty()
 
+val releaseStoreFile = localProperty("lifeatlas.release.storeFile").takeIf { it.isNotBlank() }?.let { rootProject.file(it) }
+val hasReleaseSigningConfig = releaseStoreFile?.exists() == true &&
+    localProperty("lifeatlas.release.storePassword").isNotBlank() &&
+    localProperty("lifeatlas.release.keyAlias").isNotBlank() &&
+    localProperty("lifeatlas.release.keyPassword").isNotBlank()
+
 android {
     namespace = "com.xiaoyin.lifeatlas"
     compileSdk = 35
@@ -41,9 +47,23 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = localProperty("lifeatlas.release.storePassword")
+                keyAlias = localProperty("lifeatlas.release.keyAlias")
+                keyPassword = localProperty("lifeatlas.release.keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
