@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
 import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
+import com.xiaoyin.lifeatlas.data.export.LifeAtlasImportPreview
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,8 +18,10 @@ data class SettingsUiState(
     val localFirstEnabled: Boolean = true,
     val isExporting: Boolean = false,
     val isImporting: Boolean = false,
+    val isPreparingImport: Boolean = false,
     val pendingExportJson: String? = null,
-    val pendingImportUri: Uri? = null,
+    val pendingImportJson: String? = null,
+    val importPreview: LifeAtlasImportPreview? = null,
     val message: String? = null
 )
 
@@ -89,24 +92,54 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun prepareImport(uri: Uri) {
-        _uiState.update {
-            it.copy(
-                pendingImportUri = uri,
-                message = "确认导入后，同 ID 的本地记录会被备份内容覆盖"
-            )
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isPreparingImport = true,
+                    pendingImportJson = null,
+                    importPreview = null,
+                    message = null
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val jsonText = readTextFromUri(uri)
+                    jsonText to exportService.previewJson(jsonText)
+                }
+            }.onSuccess { (jsonText, preview) ->
+                _uiState.update {
+                    it.copy(
+                        isPreparingImport = false,
+                        pendingImportJson = jsonText,
+                        importPreview = preview,
+                        message = "请确认备份摘要后再导入"
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isPreparingImport = false,
+                        message = error.message ?: "无法预览导入文件"
+                    )
+                }
+            }
         }
     }
 
     fun confirmImport() {
-        val uri = _uiState.value.pendingImportUri ?: return
+        val jsonText = _uiState.value.pendingImportJson ?: return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isImporting = true, pendingImportUri = null, message = null) }
+            _uiState.update {
+                it.copy(
+                    isImporting = true,
+                    pendingImportJson = null,
+                    importPreview = null,
+                    message = null
+                )
+            }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val jsonText = getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
-                        input.bufferedReader(Charsets.UTF_8).readText()
-                    } ?: error("无法打开导入文件")
                     exportService.importJson(jsonText)
                 }
             }.onSuccess { result ->
@@ -130,9 +163,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun cancelImport() {
         _uiState.update {
             it.copy(
-                pendingImportUri = null,
+                pendingImportJson = null,
+                importPreview = null,
                 message = null
             )
         }
+    }
+
+    private fun readTextFromUri(uri: Uri): String {
+        return getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
+            input.bufferedReader(Charsets.UTF_8).readText()
+        } ?: error("无法打开导入文件")
     }
 }

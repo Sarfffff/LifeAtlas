@@ -26,6 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
@@ -89,9 +92,15 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
             trailing = {
                 Button(
                     onClick = { importLauncher.launch(arrayOf("application/json", "text/*")) },
-                    enabled = !uiState.isImporting
+                    enabled = !uiState.isImporting && !uiState.isPreparingImport
                 ) {
-                    Text(if (uiState.isImporting) "导入中" else "导入")
+                    Text(
+                        when {
+                            uiState.isPreparingImport -> "预览中"
+                            uiState.isImporting -> "导入中"
+                            else -> "导入"
+                        }
+                    )
                 }
             }
         )
@@ -105,11 +114,20 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
         SettingCard(title = "关于岁迹", body = "岁迹 | 我的人生地图")
     }
 
-    if (uiState.pendingImportUri != null) {
+    uiState.importPreview?.let { preview ->
         AlertDialog(
             onDismissRequest = viewModel::cancelImport,
             title = { Text("确认导入备份") },
-            text = { Text("导入会按备份文件恢复记录、照片 URI、标签和关联关系。同 ID 的本地记录会被覆盖，建议先导出当前数据。") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("备份时间：${preview.exportedAt.formatDateTime()}")
+                    Text("记录：${preview.recordCount} 条")
+                    Text("照片引用：${preview.photoCount} 张")
+                    Text("标签：${preview.tagCount} 个")
+                    Text("标签关联：${preview.recordTagCount} 条")
+                    Text("导入会按备份文件恢复数据。同 ID 的本地记录会被覆盖，建议先导出当前数据。")
+                }
+            },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmImport) {
                     Text("确认导入")
@@ -122,6 +140,12 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
             }
         )
     }
+}
+
+private fun Long.formatDateTime(): String {
+    return Instant.ofEpochMilli(this)
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
 }
 
 @Composable

@@ -77,9 +77,7 @@ class LifeAtlasExportService(
     }
 
     suspend fun importJson(jsonText: String): LifeAtlasImportResult {
-        val export = json.decodeFromString<LifeAtlasExport>(jsonText)
-        require(export.app == "LifeAtlas") { "不是岁迹导出的备份文件" }
-        require(export.schemaVersion == 1) { "暂不支持该备份版本：${export.schemaVersion}" }
+        val export = decodeAndValidate(jsonText)
 
         database.withTransaction {
             memoryRecordDao.insertAll(
@@ -148,10 +146,38 @@ class LifeAtlasExportService(
             tagCount = export.tags.size
         )
     }
+
+    fun previewJson(jsonText: String): LifeAtlasImportPreview {
+        val export = decodeAndValidate(jsonText)
+        return LifeAtlasImportPreview(
+            schemaVersion = export.schemaVersion,
+            exportedAt = export.exportedAt,
+            recordCount = export.records.size,
+            photoCount = export.photos.size,
+            tagCount = export.tags.size,
+            recordTagCount = export.recordTags.size
+        )
+    }
+
+    private fun decodeAndValidate(jsonText: String): LifeAtlasExport {
+        val export = json.decodeFromString<LifeAtlasExport>(jsonText)
+        require(export.app == "LifeAtlas") { "不是岁迹导出的备份文件" }
+        require(export.schemaVersion == 1) { "暂不支持该备份版本：${export.schemaVersion}" }
+        return export
+    }
 }
 
 data class LifeAtlasImportResult(
     val recordCount: Int,
     val photoCount: Int,
     val tagCount: Int
+)
+
+data class LifeAtlasImportPreview(
+    val schemaVersion: Int,
+    val exportedAt: Long,
+    val recordCount: Int,
+    val photoCount: Int,
+    val tagCount: Int,
+    val recordTagCount: Int
 )
