@@ -2,6 +2,7 @@ package com.xiaoyin.lifeatlas.data.export
 
 import android.content.Context
 import com.xiaoyin.lifeatlas.core.database.AppDatabase
+import com.xiaoyin.lifeatlas.core.media.PhotoCacheManager
 
 object ExportServiceProvider {
     fun exportService(context: Context): LifeAtlasExportService {
@@ -10,7 +11,8 @@ object ExportServiceProvider {
             database = database,
             memoryRecordDao = database.memoryRecordDao(),
             photoDao = database.photoDao(),
-            tagDao = database.tagDao()
+            tagDao = database.tagDao(),
+            photoCacheManager = PhotoCacheManager(context)
         )
     }
 }

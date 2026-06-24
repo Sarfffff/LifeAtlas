@@ -23,6 +23,7 @@ data class SettingsUiState(
     val isPreparingImport: Boolean = false,
     val pendingExportJson: String? = null,
     val pendingBackupExport: Boolean = false,
+    val pendingBackupZipUri: Uri? = null,
     val pendingImportJson: String? = null,
     val importPreview: LifeAtlasImportPreview? = null,
     val message: String? = null
@@ -142,19 +143,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             runCatching {
                 withContext(Dispatchers.IO) {
                     when (uri.detectBackupInputKind()) {
-                        BackupInputKind.Zip -> null to previewZipFromUri(uri)
+                        BackupInputKind.Zip -> ImportPreparation(
+                            jsonText = null,
+                            backupZipUri = uri,
+                            preview = previewZipFromUri(uri)
+                        )
                         BackupInputKind.Json -> {
                             val jsonText = readTextFromUri(uri)
-                            jsonText to exportService.previewJson(jsonText)
+                            ImportPreparation(
+                                jsonText = jsonText,
+                                backupZipUri = null,
+                                preview = exportService.previewJson(jsonText)
+                            )
                         }
                     }
                 }
-            }.onSuccess { (jsonText, preview) ->
+            }.onSuccess { preparation ->
                 _uiState.update {
                     it.copy(
                         isPreparingImport = false,
-                        pendingImportJson = jsonText,
-                        importPreview = preview,
+                        pendingImportJson = preparation.jsonText,
+                        pendingBackupZipUri = preparation.backupZipUri,
+                        importPreview = preparation.preview,
                         message = "请确认备份摘要后再导入"
                     )
                 }
@@ -172,7 +182,39 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun confirmImport() {
         val state = _uiState.value
         if (state.importPreview?.backupKind == BackupKind.Zip) {
-            _uiState.update { it.copy(message = "完整备份包恢复会在下一步接入，当前只支持预览。") }
+            val uri = state.pendingBackupZipUri ?: return
+            viewModelScope.launch {
+                _uiState.update {
+                    it.copy(
+                        isImporting = true,
+                        pendingImportJson = null,
+                        pendingBackupZipUri = null,
+                        importPreview = null,
+                        message = null
+                    )
+                }
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
+                            exportService.importBackupZip(input)
+                        } ?: error("无法打开备份包文件")
+                    }
+                }.onSuccess { result ->
+                    _uiState.update {
+                        it.copy(
+                            isImporting = false,
+                            message = "备份包导入完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签，恢复 ${result.restoredMediaFileCount} 个媒体缓存文件"
+                        )
+                    }
+                }.onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isImporting = false,
+                            message = error.message ?: "备份包导入失败"
+                        )
+                    }
+                }
+            }
             return
         }
         val jsonText = state.pendingImportJson ?: return
@@ -182,6 +224,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 it.copy(
                     isImporting = true,
                     pendingImportJson = null,
+                    pendingBackupZipUri = null,
                     importPreview = null,
                     message = null
                 )
@@ -212,6 +255,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _uiState.update {
             it.copy(
                 pendingImportJson = null,
+                pendingBackupZipUri = null,
                 importPreview = null,
                 message = null
             )
@@ -245,3 +289,9 @@ private enum class BackupInputKind {
     Json,
     Zip
 }
+
+private data class ImportPreparation(
+    val jsonText: String?,
+    val backupZipUri: Uri?,
+    val preview: LifeAtlasImportPreview
+)

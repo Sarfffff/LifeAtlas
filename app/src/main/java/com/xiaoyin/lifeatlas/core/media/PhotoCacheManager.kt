@@ -5,10 +5,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import java.io.File
+import java.io.InputStream
 
 class PhotoCacheManager(context: Context) {
     private val appContext = context.applicationContext
     private val thumbnailDir = File(appContext.filesDir, "photo_thumbnails").apply {
+        mkdirs()
+    }
+    private val compressedDir = File(appContext.filesDir, "photo_compressed").apply {
         mkdirs()
     }
 
@@ -49,12 +53,30 @@ class PhotoCacheManager(context: Context) {
 
         runCatching {
             val candidate = path.toFile()
-            val thumbnailRoot = thumbnailDir.canonicalFile
+            val allowedRoots = listOf(thumbnailDir.canonicalFile, compressedDir.canonicalFile)
             val target = candidate.canonicalFile
-            if (target.startsWith(thumbnailRoot) && target.isFile) {
+            if (allowedRoots.any { target.startsWith(it) } && target.isFile) {
                 target.delete()
             }
         }
+    }
+
+    fun restoreBackupMedia(kind: String, entryName: String, inputStream: InputStream): String? {
+        return runCatching {
+            val targetDir = when (kind) {
+                "thumbnail" -> thumbnailDir
+                "compressed" -> compressedDir
+                else -> return@runCatching null
+            }
+            val fileName = entryName.substringAfterLast('/').sanitizeFileName()
+            if (fileName.isBlank()) return@runCatching null
+
+            val outputFile = File(targetDir, "${System.currentTimeMillis()}_$fileName")
+            outputFile.outputStream().use { output ->
+                inputStream.copyTo(output)
+            }
+            Uri.fromFile(outputFile).toString()
+        }.getOrNull()
     }
 
     private fun String.toFile(): File {
@@ -64,6 +86,10 @@ class PhotoCacheManager(context: Context) {
             File(this)
         }
     }
+}
+
+private fun String.sanitizeFileName(): String {
+    return replace(Regex("[^A-Za-z0-9._-]"), "_")
 }
 
 private fun BitmapFactory.Options.calculateSampleSize(maxDimension: Int): Int {

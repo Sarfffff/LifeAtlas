@@ -175,7 +175,7 @@ fun SettingsRoute(
                         Text("媒体缓存文件：$mediaFileCount 个")
                     }
                     if (preview.backupKind == BackupKind.Zip) {
-                        Text("完整备份包恢复将在下一步接入，当前仅支持预览摘要。")
+                        Text("导入会恢复结构化数据，并把备份包内媒体缓存写回 App 私有目录。同 ID 的本地记录会被覆盖。")
                     } else {
                         Text("导入会按备份文件恢复数据。同 ID 的本地记录会被覆盖，建议先导出当前数据。")
                     }
@@ -183,10 +183,9 @@ fun SettingsRoute(
             },
             confirmButton = {
                 TextButton(
-                    onClick = viewModel::confirmImport,
-                    enabled = preview.backupKind == BackupKind.Json
+                    onClick = viewModel::confirmImport
                 ) {
-                    Text(if (preview.backupKind == BackupKind.Zip) "暂不支持导入" else "确认导入")
+                    Text("确认导入")
                 }
             },
             dismissButton = {

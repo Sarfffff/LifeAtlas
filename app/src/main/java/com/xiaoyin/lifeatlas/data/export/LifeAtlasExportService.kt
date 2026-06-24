@@ -4,6 +4,7 @@ import com.xiaoyin.lifeatlas.data.dao.MemoryRecordDao
 import com.xiaoyin.lifeatlas.data.dao.PhotoDao
 import com.xiaoyin.lifeatlas.data.dao.TagDao
 import com.xiaoyin.lifeatlas.core.database.AppDatabase
+import com.xiaoyin.lifeatlas.core.media.PhotoCacheManager
 import com.xiaoyin.lifeatlas.data.entity.MemoryRecordEntity
 import com.xiaoyin.lifeatlas.data.entity.MemoryTagCrossRefEntity
 import com.xiaoyin.lifeatlas.data.entity.PhotoEntity
@@ -23,7 +24,8 @@ class LifeAtlasExportService(
     private val database: AppDatabase,
     private val memoryRecordDao: MemoryRecordDao,
     private val photoDao: PhotoDao,
-    private val tagDao: TagDao
+    private val tagDao: TagDao,
+    private val photoCacheManager: PhotoCacheManager
 ) {
     private val json = Json {
         prettyPrint = true
@@ -116,6 +118,36 @@ class LifeAtlasExportService(
 
     suspend fun importJson(jsonText: String): LifeAtlasImportResult {
         val export = decodeAndValidate(jsonText)
+        return importExportData(export, restoredMediaPaths = emptyMap())
+    }
+
+    suspend fun importBackupZip(inputStream: InputStream): LifeAtlasBackupImportResult {
+        val backup = readBackupZip(inputStream)
+        val manifest = decodeAndValidateManifest(backup.manifestJson)
+        val export = decodeAndValidate(backup.exportJson)
+        require(manifest.jsonEntry == BackupEntries.dataJson) { "备份包数据入口不受支持：${manifest.jsonEntry}" }
+
+        val restoredMediaPaths = restoreBackupMediaFiles(manifest, backup.mediaEntries)
+        val result = runCatching {
+            importExportData(export, restoredMediaPaths)
+        }.onFailure {
+            restoredMediaPaths.values.forEach(photoCacheManager::deleteCachedPhoto)
+        }.getOrThrow()
+        return LifeAtlasBackupImportResult(
+            recordCount = result.recordCount,
+            photoCount = result.photoCount,
+            tagCount = result.tagCount,
+            restoredMediaFileCount = restoredMediaPaths.size
+        )
+    }
+
+    private suspend fun importExportData(
+        export: LifeAtlasExport,
+        restoredMediaPaths: Map<MediaRestoreKey, String>
+    ): LifeAtlasImportResult {
+        val oldCachePaths = export.records
+            .flatMap { record -> photoDao.getByRecordId(record.id) }
+            .flatMap { photo -> listOfNotNull(photo.thumbnailPath, photo.compressedPath) }
 
         database.withTransaction {
             memoryRecordDao.insertAll(
@@ -158,8 +190,8 @@ class LifeAtlasExportService(
                         id = it.id,
                         recordId = it.recordId,
                         originalUri = it.originalUri,
-                        thumbnailPath = null,
-                        compressedPath = null,
+                        thumbnailPath = restoredMediaPaths[MediaRestoreKey(it.id, "thumbnail")],
+                        compressedPath = restoredMediaPaths[MediaRestoreKey(it.id, "compressed")],
                         takenAt = it.takenAt,
                         latitude = it.latitude,
                         longitude = it.longitude,
@@ -177,6 +209,8 @@ class LifeAtlasExportService(
                 }
             )
         }
+
+        oldCachePaths.forEach(photoCacheManager::deleteCachedPhoto)
 
         return LifeAtlasImportResult(
             recordCount = export.records.size,
@@ -200,30 +234,9 @@ class LifeAtlasExportService(
     }
 
     fun previewBackupZip(inputStream: InputStream): LifeAtlasImportPreview {
-        var exportJson: String? = null
-        var manifestJson: String? = null
-        val mediaEntryNames = mutableSetOf<String>()
-
-        ZipInputStream(inputStream.buffered()).use { zip ->
-            var entry = zip.nextEntry
-            while (entry != null) {
-                if (!entry.isDirectory) {
-                    when (entry.name) {
-                        BackupEntries.dataJson -> exportJson = zip.readEntryText()
-                        BackupEntries.manifestJson -> manifestJson = zip.readEntryText()
-                        else -> if (entry.name.startsWith("media/")) {
-                            mediaEntryNames += entry.name
-                        }
-                    }
-                }
-                zip.closeEntry()
-                entry = zip.nextEntry
-            }
-        }
-
-        val manifest = manifestJson?.let { decodeAndValidateManifest(it) }
-            ?: error("备份包缺少 ${BackupEntries.manifestJson}")
-        val export = decodeAndValidate(exportJson ?: error("备份包缺少 ${BackupEntries.dataJson}"))
+        val backup = readBackupZip(inputStream)
+        val manifest = decodeAndValidateManifest(backup.manifestJson)
+        val export = decodeAndValidate(backup.exportJson)
         require(manifest.jsonEntry == BackupEntries.dataJson) { "备份包数据入口不受支持：${manifest.jsonEntry}" }
 
         return LifeAtlasImportPreview(
@@ -233,7 +246,7 @@ class LifeAtlasExportService(
             photoCount = export.photos.size,
             tagCount = export.tags.size,
             recordTagCount = export.recordTags.size,
-            mediaFileCount = mediaEntryNames.size,
+            mediaFileCount = backup.mediaEntries.size,
             backupKind = BackupKind.Zip
         )
     }
@@ -250,6 +263,50 @@ class LifeAtlasExportService(
         require(manifest.app == "LifeAtlas") { "不是岁迹导出的备份包" }
         require(manifest.schemaVersion == 1) { "暂不支持该备份包版本：${manifest.schemaVersion}" }
         return manifest
+    }
+
+    private fun readBackupZip(inputStream: InputStream): BackupZipPayload {
+        var exportJson: String? = null
+        var manifestJson: String? = null
+        val mediaEntries = mutableMapOf<String, ByteArray>()
+
+        ZipInputStream(inputStream.buffered()).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory) {
+                    when (entry.name) {
+                        BackupEntries.dataJson -> exportJson = zip.readEntryText()
+                        BackupEntries.manifestJson -> manifestJson = zip.readEntryText()
+                        else -> if (entry.name.startsWith("media/")) {
+                            mediaEntries[entry.name] = zip.readBytes()
+                        }
+                    }
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+
+        return BackupZipPayload(
+            exportJson = exportJson ?: error("备份包缺少 ${BackupEntries.dataJson}"),
+            manifestJson = manifestJson ?: error("备份包缺少 ${BackupEntries.manifestJson}"),
+            mediaEntries = mediaEntries
+        )
+    }
+
+    private fun restoreBackupMediaFiles(
+        manifest: LifeAtlasBackupManifest,
+        mediaEntries: Map<String, ByteArray>
+    ): Map<MediaRestoreKey, String> {
+        return manifest.mediaFiles.mapNotNull { media ->
+            val bytes = mediaEntries[media.entryName] ?: return@mapNotNull null
+            val restoredPath = photoCacheManager.restoreBackupMedia(
+                kind = media.kind,
+                entryName = media.entryName,
+                inputStream = bytes.inputStream()
+            ) ?: return@mapNotNull null
+            MediaRestoreKey(photoId = media.photoId, kind = media.kind) to restoredPath
+        }.toMap()
     }
 
     private suspend fun collectBackupMediaFiles(): List<BackupMediaFile> {
@@ -288,6 +345,17 @@ class LifeAtlasExportService(
         }
     }
 }
+
+private data class BackupZipPayload(
+    val exportJson: String,
+    val manifestJson: String,
+    val mediaEntries: Map<String, ByteArray>
+)
+
+private data class MediaRestoreKey(
+    val photoId: Long,
+    val kind: String
+)
 
 private object BackupEntries {
     const val dataJson = "lifeatlas_export.json"
@@ -330,4 +398,11 @@ data class LifeAtlasBackupResult(
     val recordCount: Int,
     val photoCount: Int,
     val mediaFileCount: Int
+)
+
+data class LifeAtlasBackupImportResult(
+    val recordCount: Int,
+    val photoCount: Int,
+    val tagCount: Int,
+    val restoredMediaFileCount: Int
 )
