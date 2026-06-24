@@ -30,6 +30,7 @@ import com.xiaoyin.lifeatlas.BuildConfig
 import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
+import com.xiaoyin.lifeatlas.feature.settings.SettingsMessageType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -157,9 +158,13 @@ fun SettingsRoute(
         )
         uiState.message?.let { message ->
             Text(
-                text = message,
+                text = message.text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
+                color = when (message.type) {
+                    SettingsMessageType.Success -> MaterialTheme.colorScheme.primary
+                    SettingsMessageType.Info -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+                    SettingsMessageType.Error -> MaterialTheme.colorScheme.error
+                }
             )
         }
         SettingCard(title = "关于岁迹", body = "岁迹 | 我的人生地图\n当前阶段：V0.1 本地可用版，准备进入 V1.0 回归测试")

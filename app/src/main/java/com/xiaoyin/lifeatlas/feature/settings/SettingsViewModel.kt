@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
+import java.io.IOException
+import java.util.zip.ZipException
 
 data class SettingsUiState(
     val localFirstEnabled: Boolean = true,
@@ -26,8 +29,19 @@ data class SettingsUiState(
     val pendingBackupZipUri: Uri? = null,
     val pendingImportJson: String? = null,
     val importPreview: LifeAtlasImportPreview? = null,
-    val message: String? = null
+    val message: SettingsMessage? = null
 )
+
+data class SettingsMessage(
+    val text: String,
+    val type: SettingsMessageType
+)
+
+enum class SettingsMessageType {
+    Success,
+    Info,
+    Error
+}
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val exportService = ExportServiceProvider.exportService(application)
@@ -53,12 +67,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun prepareExport() {
         viewModelScope.launch {
             _uiState.update { it.copy(isExporting = true, message = null) }
-            val json = exportService.exportJson()
-            _uiState.update {
-                it.copy(
-                    isExporting = false,
-                    pendingExportJson = json
-                )
+            runCatching {
+                withContext(Dispatchers.IO) { exportService.exportJson() }
+            }.onSuccess { json ->
+                _uiState.update {
+                    it.copy(
+                        isExporting = false,
+                        pendingExportJson = json
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isExporting = false,
+                        message = error.toSettingsMessage("准备 JSON 导出失败")
+                    )
+                }
             }
         }
     }
@@ -77,14 +101,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         pendingExportJson = null,
-                        message = "导出完成"
+                        message = SettingsMessage("导出完成", SettingsMessageType.Success)
                     )
                 }
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         pendingExportJson = null,
-                        message = error.message ?: "导出失败"
+                        message = error.toSettingsMessage("导出失败")
                     )
                 }
             }
@@ -112,14 +136,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isExportingBackup = false,
-                        message = "备份包导出完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.mediaFileCount} 个媒体缓存文件"
+                        message = SettingsMessage(
+                            text = "备份包导出完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.mediaFileCount} 个媒体缓存文件",
+                            type = SettingsMessageType.Success
+                        )
                     )
                 }
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         isExportingBackup = false,
-                        message = error.message ?: "备份包导出失败"
+                        message = error.toSettingsMessage("备份包导出失败")
                     )
                 }
             }
@@ -165,14 +192,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         pendingImportJson = preparation.jsonText,
                         pendingBackupZipUri = preparation.backupZipUri,
                         importPreview = preparation.preview,
-                        message = "请确认备份摘要后再导入"
+                        message = SettingsMessage("请确认备份摘要后再导入", SettingsMessageType.Info)
                     )
                 }
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         isPreparingImport = false,
-                        message = error.message ?: "无法预览导入文件"
+                        message = error.toSettingsMessage("无法预览导入文件")
                     )
                 }
             }
@@ -203,14 +230,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     _uiState.update {
                         it.copy(
                             isImporting = false,
-                            message = "备份包导入完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签，恢复 ${result.restoredMediaFileCount} 个媒体缓存文件"
+                            message = SettingsMessage(
+                                text = "备份包导入完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签，恢复 ${result.restoredMediaFileCount} 个媒体缓存文件",
+                                type = SettingsMessageType.Success
+                            )
                         )
                     }
                 }.onFailure { error ->
                     _uiState.update {
                         it.copy(
                             isImporting = false,
-                            message = error.message ?: "备份包导入失败"
+                            message = error.toSettingsMessage("备份包导入失败")
                         )
                     }
                 }
@@ -237,14 +267,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isImporting = false,
-                        message = "导入完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签"
+                        message = SettingsMessage(
+                            text = "导入完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签",
+                            type = SettingsMessageType.Success
+                        )
                     )
                 }
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         isImporting = false,
-                        message = error.message ?: "导入失败"
+                        message = error.toSettingsMessage("导入失败")
                     )
                 }
             }
@@ -295,3 +328,14 @@ private data class ImportPreparation(
     val backupZipUri: Uri?,
     val preview: LifeAtlasImportPreview
 )
+
+private fun Throwable.toSettingsMessage(fallback: String): SettingsMessage {
+    val detail = when (this) {
+        is SerializationException -> "文件内容不是有效的岁迹备份格式"
+        is ZipException -> "备份包已损坏或不是有效的 zip 文件"
+        is IOException -> "文件读写失败，请检查文件是否仍可访问"
+        is IllegalArgumentException -> message ?: fallback
+        else -> message ?: fallback
+    }
+    return SettingsMessage("$fallback：$detail", SettingsMessageType.Error)
+}
