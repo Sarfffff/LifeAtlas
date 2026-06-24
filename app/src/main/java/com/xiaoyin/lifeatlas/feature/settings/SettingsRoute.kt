@@ -104,6 +104,10 @@ fun SettingsRoute(viewModel: SettingsViewModel = viewModel()) {
                 }
             }
         )
+        SettingCard(
+            title = "标签管理",
+            body = "后续支持标签重命名、删除和颜色设置。当前可在新增或编辑记录时填写标签。"
+        )
         uiState.message?.let { message ->
             Text(
                 text = message,
