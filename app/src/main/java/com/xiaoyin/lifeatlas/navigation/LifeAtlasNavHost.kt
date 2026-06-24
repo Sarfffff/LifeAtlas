@@ -7,6 +7,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
@@ -17,6 +18,7 @@ import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.xiaoyin.lifeatlas.feature.home.HomeRoute
 import com.xiaoyin.lifeatlas.feature.map.MapRoute
+import com.xiaoyin.lifeatlas.feature.map.MapPickerRoute
 import com.xiaoyin.lifeatlas.feature.record.AddRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.EditRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.RecordDetailRoute
@@ -77,7 +79,22 @@ fun LifeAtlasNavHost() {
                 )
             }
             composable(LifeAtlasDestination.AddRecord.route) {
+                val latitudeResult by it.savedStateHandle
+                    .getStateFlow(LifeAtlasDestination.MapPicker.resultLatitudeKey, Double.NaN)
+                    .collectAsState()
+                val longitudeResult by it.savedStateHandle
+                    .getStateFlow(LifeAtlasDestination.MapPicker.resultLongitudeKey, Double.NaN)
+                    .collectAsState()
                 AddRecordRoute(
+                    pickedLatitude = latitudeResult.takeIf { value -> !value.isNaN() },
+                    pickedLongitude = longitudeResult.takeIf { value -> !value.isNaN() },
+                    onMapPickerResultHandled = {
+                        it.savedStateHandle.remove<Double>(LifeAtlasDestination.MapPicker.resultLatitudeKey)
+                        it.savedStateHandle.remove<Double>(LifeAtlasDestination.MapPicker.resultLongitudeKey)
+                    },
+                    onMapPickerClick = { latitude, longitude ->
+                        navController.navigate(LifeAtlasDestination.MapPicker.createRoute(latitude, longitude))
+                    },
                     onRecordSaved = {
                         navController.navigate(LifeAtlasDestination.Timeline.route) {
                             popUpTo(LifeAtlasDestination.AddRecord.route) {
@@ -136,13 +153,65 @@ fun LifeAtlasNavHost() {
                     }
                 )
             ) {
+                val latitudeResult by it.savedStateHandle
+                    .getStateFlow(LifeAtlasDestination.MapPicker.resultLatitudeKey, Double.NaN)
+                    .collectAsState()
+                val longitudeResult by it.savedStateHandle
+                    .getStateFlow(LifeAtlasDestination.MapPicker.resultLongitudeKey, Double.NaN)
+                    .collectAsState()
                 EditRecordRoute(
+                    pickedLatitude = latitudeResult.takeIf { value -> !value.isNaN() },
+                    pickedLongitude = longitudeResult.takeIf { value -> !value.isNaN() },
+                    onMapPickerResultHandled = {
+                        it.savedStateHandle.remove<Double>(LifeAtlasDestination.MapPicker.resultLatitudeKey)
+                        it.savedStateHandle.remove<Double>(LifeAtlasDestination.MapPicker.resultLongitudeKey)
+                    },
+                    onMapPickerClick = { latitude, longitude ->
+                        navController.navigate(LifeAtlasDestination.MapPicker.createRoute(latitude, longitude))
+                    },
                     onBack = { navController.popBackStack() },
                     onSaved = { recordId ->
                         navController.popBackStack()
                         navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId)) {
                             launchSingleTop = true
                         }
+                    }
+                )
+            }
+            composable(
+                route = LifeAtlasDestination.MapPicker.route,
+                arguments = listOf(
+                    navArgument(LifeAtlasDestination.MapPicker.latitudeArg) {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                    navArgument(LifeAtlasDestination.MapPicker.longitudeArg) {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) { backStackEntry ->
+                val initialLatitude = backStackEntry.arguments
+                    ?.getString(LifeAtlasDestination.MapPicker.latitudeArg)
+                    ?.toDoubleOrNull()
+                val initialLongitude = backStackEntry.arguments
+                    ?.getString(LifeAtlasDestination.MapPicker.longitudeArg)
+                    ?.toDoubleOrNull()
+
+                MapPickerRoute(
+                    initialLatitude = initialLatitude,
+                    initialLongitude = initialLongitude,
+                    onBack = { navController.popBackStack() },
+                    onPointConfirmed = { point ->
+                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                            LifeAtlasDestination.MapPicker.resultLatitudeKey,
+                            point.latitude
+                        )
+                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                            LifeAtlasDestination.MapPicker.resultLongitudeKey,
+                            point.longitude
+                        )
+                        navController.popBackStack()
                     }
                 )
             }

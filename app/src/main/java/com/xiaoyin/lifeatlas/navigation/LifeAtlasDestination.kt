@@ -33,6 +33,20 @@ sealed class LifeAtlasDestination(
         fun createRoute(recordId: Long): String = "edit_record/$recordId"
     }
 
+    data object MapPicker {
+        const val route = "map_picker?lat={lat}&lng={lng}"
+        const val latitudeArg = "lat"
+        const val longitudeArg = "lng"
+        const val resultLatitudeKey = "map_picker_result_latitude"
+        const val resultLongitudeKey = "map_picker_result_longitude"
+
+        fun createRoute(latitude: Double?, longitude: Double?): String {
+            val latitudeValue = latitude?.toString().orEmpty()
+            val longitudeValue = longitude?.toString().orEmpty()
+            return "map_picker?lat=$latitudeValue&lng=$longitudeValue"
+        }
+    }
+
     data object TagManagement {
         const val route = "tag_management"
     }

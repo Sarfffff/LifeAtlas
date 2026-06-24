@@ -40,11 +40,14 @@ import coil.compose.AsyncImage
 fun EditRecordRoute(
     onBack: () -> Unit,
     onSaved: (Long) -> Unit,
+    onMapPickerClick: (Double?, Double?) -> Unit,
+    pickedLatitude: Double? = null,
+    pickedLongitude: Double? = null,
+    onMapPickerResultHandled: () -> Unit = {},
     viewModel: EditRecordViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
-    var mapPickerMessage by remember { mutableStateOf<String?>(null) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = uiState.recordTime)
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -56,6 +59,13 @@ fun EditRecordRoute(
         if (uiState.saved) {
             viewModel.onSavedHandled()
             onSaved(uiState.recordId)
+        }
+    }
+
+    LaunchedEffect(pickedLatitude, pickedLongitude) {
+        if (pickedLatitude != null && pickedLongitude != null) {
+            viewModel.onMapPointSelected(pickedLatitude, pickedLongitude)
+            onMapPickerResultHandled()
         }
     }
 
@@ -120,17 +130,15 @@ fun EditRecordRoute(
                 )
             }
             OutlinedButton(
-                onClick = { mapPickerMessage = "地图选点会在后续接入真实地图 SDK 后开放。" },
+                onClick = {
+                    onMapPickerClick(
+                        uiState.latitudeText.toValidLatitudeOrNull(),
+                        uiState.longitudeText.toValidLongitudeOrNull()
+                    )
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("地图选点")
-            }
-            mapPickerMessage?.let { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
-                )
             }
             OutlinedTextField(
                 value = uiState.mood,
@@ -225,4 +233,12 @@ fun EditRecordRoute(
             DatePicker(state = datePickerState)
         }
     }
+}
+
+private fun String.toValidLatitudeOrNull(): Double? {
+    return trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
+}
+
+private fun String.toValidLongitudeOrNull(): Double? {
+    return trim().toDoubleOrNull()?.takeIf { it in -180.0..180.0 }
 }

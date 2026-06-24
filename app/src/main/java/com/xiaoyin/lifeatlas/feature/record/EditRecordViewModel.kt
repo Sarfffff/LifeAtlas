@@ -98,6 +98,16 @@ class EditRecordViewModel(
         _uiState.update { it.copy(longitudeText = value, errorMessage = null) }
     }
 
+    fun onMapPointSelected(latitude: Double, longitude: Double) {
+        _uiState.update {
+            it.copy(
+                latitudeText = latitude.toString(),
+                longitudeText = longitude.toString(),
+                errorMessage = null
+            )
+        }
+    }
+
     fun onMoodChange(value: String) {
         _uiState.update { it.copy(mood = value) }
     }
