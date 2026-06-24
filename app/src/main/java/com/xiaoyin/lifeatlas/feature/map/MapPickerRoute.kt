@@ -119,7 +119,7 @@ fun MapPickerRoute(
             text = if (MapSdkConfig.isAmapConfigured) {
                 "拖动地图，或者使用当前位置，把这一段记忆钉在世界上。"
             } else {
-                "当前没有配置高德 Key，真实地图不可用；你仍然可以授权定位获取当前位置，或返回表单手动填写经纬度。"
+                "当前没有配置高德 Key，真实地图不可用；定位权限仍可获取当前位置，但不能替代地图服务 Key。"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
@@ -285,7 +285,7 @@ private fun resolveAddress(
                 onResolved(point)
             }
             ReverseGeocodeResult.MissingKey -> {
-                onMessage("地图 Key 未配置，已保留经纬度。")
+                onMessage("地图 Key 未配置，已保留经纬度；地点名称可之后手动补充。")
                 onResolved(point)
             }
             ReverseGeocodeResult.NetworkUnavailable -> {
@@ -320,15 +320,17 @@ private fun MapPickerUnavailableContent() {
                 color = WildernessTeal
             )
             Text(
-                text = "定位权限只能获取当前位置，不能替代地图服务 Key。你可以先用当前位置或手动经纬度保存记录。",
+                text = "定位权限只能获取当前位置，不能替代地图服务 Key。你可以先用当前位置或手动经纬度保存记录，之后配置 Key 再使用拖拽地图选点。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
             )
-            Text(
-                text = "配置方式：local.properties 添加 lifeatlas.amap.apiKey=你的高德 Key 后重新构建。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
-            )
+            MapSdkConfig.setupSteps.forEachIndexed { index, step ->
+                Text(
+                    text = "${index + 1}. $step",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                )
+            }
         }
     }
 }

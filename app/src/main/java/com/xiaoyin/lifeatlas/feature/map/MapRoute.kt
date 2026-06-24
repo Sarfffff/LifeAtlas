@@ -10,9 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -48,6 +48,7 @@ fun MapRoute(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -76,11 +77,14 @@ fun MapRoute(
             }
         }
         MapSummary(count = uiState.locatedRecords.size)
+        if (!MapSdkConfig.isAmapConfigured) {
+            MapConfigGuideCard()
+        }
         if (uiState.locatedRecords.isEmpty()) {
             MapEmptyCard()
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(uiState.locatedRecords) { record ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                uiState.locatedRecords.forEach { record ->
                     LocatedRecordCard(record = record)
                 }
             }
@@ -96,6 +100,7 @@ private fun MapSummary(count: Int) {
     ) {
         MapStatChip(label = "坐标", value = "$count")
         MapStatChip(label = "地图", value = MapSdkConfig.provider.displayName)
+        MapStatChip(label = "Key", value = MapSdkConfig.statusText)
     }
 }
 
@@ -157,6 +162,44 @@ private fun MapUnavailableContent() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
+            Text(
+                text = "设置页可查看完整配置检查。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.56f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MapConfigGuideCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "地图配置检查",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = WildernessTeal
+            )
+            Text(
+                text = "当前缺少高德地图 Key，所以真实地图、拖拽地图和地址反查不会完整可用；定位权限只能获取当前位置，不能替代地图 Key。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)
+            )
+            MapSdkConfig.setupSteps.forEachIndexed { index, step ->
+                Text(
+                    text = "${index + 1}. $step",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f)
+                )
+            }
         }
     }
 }

@@ -184,7 +184,15 @@ fun SettingsRoute(
             )
             SettingCard(
                 title = "地图配置",
-                body = "供应商：${MapSdkConfig.provider.displayName}\nKey 状态：${if (MapSdkConfig.isAmapConfigured) "已配置" else "未配置"}"
+                body = "供应商：${MapSdkConfig.provider.displayName}\nKey 状态：${MapSdkConfig.statusText}\n配置项：${MapSdkConfig.localPropertyKey}"
+            )
+            SettingCard(
+                title = "地图不可用时怎么处理？",
+                body = MapSdkConfig.setupSteps.joinToString(separator = "\n") { step -> "• $step" }
+            )
+            SettingCard(
+                title = "桌面图标没有变化？",
+                body = MapSdkConfig.iconRefreshTips.joinToString(separator = "\n") { tip -> "• $tip" }
             )
         }
         SettingGroup(title = "关于岁迹", tint = WildernessMeadow) {
