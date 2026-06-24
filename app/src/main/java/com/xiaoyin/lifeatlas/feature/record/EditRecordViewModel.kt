@@ -24,6 +24,7 @@ data class EditRecordUiState(
     val mood: String = "",
     val importance: Float = 3f,
     val tagsText: String = "",
+    val photoUris: List<String> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
@@ -51,9 +52,10 @@ class EditRecordViewModel(
         viewModelScope.launch {
             combine(
                 repository.observeRecord(recordId),
-                repository.observeTags(recordId)
-            ) { record, tags -> record to tags }
-                .collect { (record, tags) ->
+                repository.observeTags(recordId),
+                repository.observePhotos(recordId)
+            ) { record, tags, photos -> Triple(record, tags, photos) }
+                .collect { (record, tags, photos) ->
                 if (record == null) {
                     _uiState.update {
                         it.copy(
@@ -62,7 +64,10 @@ class EditRecordViewModel(
                         )
                     }
                 } else if (!hasLoadedInitialRecord) {
-                    _uiState.value = record.toUiState(tags.joinToString("，") { it.name })
+                    _uiState.value = record.toUiState(
+                        tagsText = tags.joinToString("，") { it.name },
+                        photoUris = photos.map { it.originalUri }
+                    )
                     hasLoadedInitialRecord = true
                 }
             }
@@ -105,6 +110,18 @@ class EditRecordViewModel(
         _uiState.update { it.copy(tagsText = value) }
     }
 
+    fun onPhotosSelected(uris: List<String>) {
+        _uiState.update { current ->
+            current.copy(photoUris = (current.photoUris + uris).distinct())
+        }
+    }
+
+    fun removePhoto(uri: String) {
+        _uiState.update { current ->
+            current.copy(photoUris = current.photoUris.filterNot { it == uri })
+        }
+    }
+
     fun saveRecord() {
         val state = _uiState.value
         if (state.title.isBlank()) {
@@ -133,7 +150,8 @@ class EditRecordViewModel(
                     createdAt = state.createdAt,
                     updatedAt = System.currentTimeMillis()
                 ),
-                tagNames = state.tagsText.toTagNames()
+                tagNames = state.tagsText.toTagNames(),
+                photoUris = state.photoUris
             )
             _uiState.update {
                 it.copy(
@@ -149,7 +167,7 @@ class EditRecordViewModel(
     }
 }
 
-private fun MemoryRecord.toUiState(tagsText: String): EditRecordUiState {
+private fun MemoryRecord.toUiState(tagsText: String, photoUris: List<String>): EditRecordUiState {
     return EditRecordUiState(
         recordId = id,
         title = title,
@@ -161,6 +179,7 @@ private fun MemoryRecord.toUiState(tagsText: String): EditRecordUiState {
         mood = mood.orEmpty(),
         importance = importance.toFloat(),
         tagsText = tagsText,
+        photoUris = photoUris,
         createdAt = createdAt,
         isLoading = false
     )

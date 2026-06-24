@@ -1,5 +1,8 @@
 package com.xiaoyin.lifeatlas.feature.record
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.time.formatDate
+import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +45,11 @@ fun EditRecordRoute(
     val uiState by viewModel.uiState.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = uiState.recordTime)
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        viewModel.onPhotosSelected(uris.map { it.toString() })
+    }
 
     LaunchedEffect(uiState.saved) {
         if (uiState.saved) {
@@ -131,6 +140,35 @@ fun EditRecordRoute(
                 placeholder = { Text("用逗号分隔，例如：旅行，家人") },
                 singleLine = true
             )
+            Button(
+                onClick = {
+                    photoPicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("管理照片（${uiState.photoUris.size}）")
+            }
+            if (uiState.photoUris.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    uiState.photoUris.forEach { uri ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AsyncImage(
+                                model = uri,
+                                contentDescription = "记录照片",
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { viewModel.removePhoto(uri) }) {
+                                Text("移除")
+                            }
+                        }
+                    }
+                }
+            }
             uiState.errorMessage?.let { message ->
                 Text(
                     text = message,

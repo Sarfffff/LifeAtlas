@@ -96,6 +96,12 @@ class MemoryRepository(
         replaceTags(record.id, tagNames)
     }
 
+    suspend fun updateRecord(record: MemoryRecord, tagNames: List<String>, photoUris: List<String>) {
+        memoryRecordDao.update(record.toEntity())
+        replaceTags(record.id, tagNames)
+        replacePhotos(record.id, photoUris)
+    }
+
     suspend fun deleteRecord(id: Long) {
         memoryRecordDao.deleteById(id)
     }
@@ -118,6 +124,11 @@ class MemoryRepository(
                 )
             }
         )
+    }
+
+    private suspend fun replacePhotos(recordId: Long, photoUris: List<String>) {
+        photoDao.deleteByRecordId(recordId)
+        addPhotos(recordId, photoUris)
     }
 
     private suspend fun replaceTags(recordId: Long, tagNames: List<String>) {
