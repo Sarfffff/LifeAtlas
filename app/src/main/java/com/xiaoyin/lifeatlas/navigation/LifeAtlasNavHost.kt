@@ -3,6 +3,8 @@ package com.xiaoyin.lifeatlas.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -10,12 +12,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.feature.home.HomeRoute
 import com.xiaoyin.lifeatlas.feature.map.MapRoute
 import com.xiaoyin.lifeatlas.feature.map.MapPickerRoute
@@ -34,7 +40,10 @@ fun LifeAtlasNavHost() {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = WildernessPaper,
+                tonalElevation = 0.dp
+            ) {
                 topLevelDestinations.forEach { destination ->
                     NavigationBarItem(
                         selected = currentRoute == destination.route,
@@ -54,6 +63,14 @@ fun LifeAtlasNavHost() {
                             )
                         },
                         label = { Text(destination.label) }
+                        ,
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = WildernessTeal,
+                            selectedTextColor = WildernessTeal,
+                            indicatorColor = WildernessMeadow.copy(alpha = 0.7f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                        )
                     )
                 }
             }

@@ -4,10 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,7 +30,11 @@ import com.xiaoyin.lifeatlas.core.map.AmapMapView
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.map.MapMarkerItem
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
-import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
 
 @Composable
 fun MapRoute(
@@ -45,12 +51,17 @@ fun MapRoute(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(text = "地图", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(text = "人生地图", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+        Text(
+            text = "每一枚坐标，都是你在旷野里停留过的证据。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+        )
         Card(
             modifier = Modifier
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = AtlasMist)
+            shape = RoundedCornerShape(26.dp),
+            colors = CardDefaults.cardColors(containerColor = WildernessPaper)
         ) {
             if (MapSdkConfig.isAmapConfigured) {
                 AmapMapView(
@@ -64,22 +75,42 @@ fun MapRoute(
                 MapUnavailableContent()
             }
         }
-        Text(
-            text = "当前地图页会把带坐标记录渲染为 marker，点击 marker 可查看记录详情。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
-        )
+        MapSummary(count = uiState.locatedRecords.size)
         if (uiState.locatedRecords.isEmpty()) {
-            Text(
-                text = "暂无带坐标的记录。新增或编辑记录时填写经纬度后，会出现在这里。",
-                style = MaterialTheme.typography.bodyLarge
-            )
+            MapEmptyCard()
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(uiState.locatedRecords) { record ->
                     LocatedRecordCard(record = record)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MapSummary(count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        MapStatChip(label = "坐标", value = "$count")
+        MapStatChip(label = "地图", value = MapSdkConfig.provider.displayName)
+    }
+}
+
+@Composable
+private fun MapStatChip(label: String, value: String) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessMeadow.copy(alpha = 0.58f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = label, style = MaterialTheme.typography.bodySmall, color = WildernessTeal.copy(alpha = 0.68f))
+            Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = WildernessTeal)
         }
     }
 }
@@ -116,13 +147,36 @@ private fun MapUnavailableContent() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "地图 Key 未配置",
+                text = "地图还在等风起",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold,
+                color = WildernessTeal
             )
             Text(
-                text = "请在 local.properties 中配置 lifeatlas.amap.apiKey 后重新构建。",
-                style = MaterialTheme.typography.bodyMedium
+                text = "配置高德 Key 后，你的坐标会在这里展开成一片旷野。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MapEmptyCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessSky.copy(alpha = 0.34f))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = "还没有点亮坐标", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = WildernessTeal)
+            Text(
+                text = "新增或编辑记录时填写经纬度，地图就会出现属于你的第一枚 marker。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)
             )
         }
     }
@@ -132,8 +186,8 @@ private fun MapUnavailableContent() {
 private fun LocatedRecordCard(record: MemoryRecord) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -142,7 +196,8 @@ private fun LocatedRecordCard(record: MemoryRecord) {
             Text(
                 text = record.title,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold,
+                color = WildernessTeal
             )
             record.locationName?.let { locationName ->
                 Text(text = locationName, style = MaterialTheme.typography.bodyMedium)
@@ -151,6 +206,13 @@ private fun LocatedRecordCard(record: MemoryRecord) {
                 onClick = { },
                 label = {
                     Text("${record.latitude}, ${record.longitude}")
+                },
+                leadingIcon = {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(WildernessWildflower, RoundedCornerShape(4.dp))
+                    )
                 }
             )
         }

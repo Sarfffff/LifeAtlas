@@ -2,6 +2,7 @@ package com.xiaoyin.lifeatlas.feature.timeline
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,10 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,7 +40,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.core.time.formatDate
-import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
 import coil.compose.SubcomposeAsyncImage
 import java.time.Instant
 import java.time.ZoneId
@@ -53,15 +62,11 @@ fun TimelineRoute(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(text = "时间轴", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(
-            text = "按时间倒序回看人生节点。当前内容来自本地 Room 数据库。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
-        )
+        PageHeader(title = "时间轴", subtitle = "沿着记忆的小径，回看每一段走过的风景。")
         TimelineSearchBar(
             query = uiState.searchQuery,
             onQueryChange = viewModel::onSearchQueryChange,
@@ -78,26 +83,49 @@ fun TimelineRoute(
         )
 
         if (records.isEmpty()) {
-            Text(
-                text = uiState.emptyStateText(),
-                style = MaterialTheme.typography.bodyLarge
-            )
+            EmptyTrail(text = uiState.emptyStateText())
         } else {
             val groupedRecords = records.groupBy { it.recordTime.formatMonth() }
             groupedRecords.forEach { (month, monthRecords) ->
-                Text(
-                    text = month,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                monthRecords.forEach { record ->
-                    TimelinePreviewCard(
-                        record = record,
-                        firstPhoto = uiState.firstPhotosByRecordId[record.id],
-                        onClick = { onRecordClick(record.id) }
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TrailMarker()
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = month,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = WildernessTeal
+                        )
+                        monthRecords.forEach { record ->
+                            TimelinePreviewCard(
+                                record = record,
+                                firstPhoto = uiState.firstPhotosByRecordId[record.id],
+                                onClick = { onRecordClick(record.id) }
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PageHeader(title: String, subtitle: String) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(text = title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+            Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f))
         }
     }
 }
@@ -127,8 +155,9 @@ private fun TimelineSearchBar(
             value = query,
             onValueChange = onQueryChange,
             modifier = Modifier.weight(1f),
-            label = { Text("搜索记录") },
-            placeholder = { Text("标题、正文、地点、心情") },
+            shape = RoundedCornerShape(18.dp),
+            label = { Text("寻找记忆") },
+            placeholder = { Text("标题、地点、心情") },
             singleLine = true
         )
         if (query.isNotBlank()) {
@@ -159,13 +188,21 @@ private fun TimelineTagFilter(
             FilterChip(
                 selected = selectedTagId == null,
                 onClick = { onSelectTag(null) },
-                label = { Text("全部") }
+                label = { Text("全部") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = WildernessMeadow,
+                    selectedLabelColor = WildernessTeal
+                )
             )
         }
         items(tags) { tag ->
             FilterChip(
                 selected = selectedTagId == tag.id,
                 onClick = { onSelectTag(tag.id) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = WildernessWildflower.copy(alpha = 0.75f),
+                    selectedLabelColor = WildernessTeal
+                ),
                 label = {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         TagColorDot(color = tag.color)
@@ -173,6 +210,42 @@ private fun TimelineTagFilter(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun TrailMarker() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .background(WildernessSunColor(), RoundedCornerShape(9.dp))
+        )
+        Box(
+            modifier = Modifier
+                .width(2.dp)
+                .height(120.dp)
+                .background(WildernessTeal.copy(alpha = 0.18f), RoundedCornerShape(1.dp))
+        )
+    }
+}
+
+@Composable
+private fun WildernessSunColor(): Color = WildernessWildflower
+
+@Composable
+private fun EmptyTrail(text: String) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = "这里还很安静", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = WildernessTeal)
+            Text(text = text.replace("暂无记录", "还没有走到这里"), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -198,8 +271,8 @@ private fun TimelinePreviewCard(record: MemoryRecord, firstPhoto: Photo?, onClic
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = AtlasMist)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -211,7 +284,8 @@ private fun TimelinePreviewCard(record: MemoryRecord, firstPhoto: Photo?, onClic
             Text(
                 text = record.title,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold,
+                color = WildernessTeal
             )
             Text(
                 text = listOfNotNull(record.locationName, record.recordTime.formatDate()).joinToString(" | "),
@@ -234,7 +308,8 @@ private fun TimelinePhotoImage(photo: Photo) {
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .fillMaxWidth()
-            .height(150.dp),
+            .height(150.dp)
+            .background(WildernessSky.copy(alpha = 0.34f), RoundedCornerShape(16.dp)),
         loading = {
             TimelinePhotoPlaceholder(text = "正在加载照片")
         },
@@ -249,7 +324,7 @@ private fun TimelinePhotoPlaceholder(text: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)),
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -280,5 +355,5 @@ private fun TimelineUiState.emptyStateText(): String {
     if (searchQuery.isNotBlank() && selectedTagId != null) return "当前标签下没有匹配的记录"
     if (searchQuery.isNotBlank()) return "没有匹配的记录"
     if (selectedTagId != null) return "当前标签下暂无记录"
-    return "暂无记录"
+    return "还没有走到这里"
 }
