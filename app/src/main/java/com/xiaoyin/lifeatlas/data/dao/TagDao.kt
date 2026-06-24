@@ -32,6 +32,9 @@ interface TagDao {
     @Query("SELECT * FROM tags WHERE name = :name LIMIT 1")
     suspend fun findByName(name: String): TagEntity?
 
+    @Query("SELECT * FROM tags WHERE id = :id LIMIT 1")
+    suspend fun findById(id: Long): TagEntity?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTag(tag: TagEntity): Long
 
@@ -43,4 +46,13 @@ interface TagDao {
 
     @Query("DELETE FROM memory_tag_cross_ref WHERE record_id = :recordId")
     suspend fun clearTagsForRecord(recordId: Long)
+
+    @Query("UPDATE tags SET name = :name WHERE id = :tagId")
+    suspend fun updateTagName(tagId: Long, name: String)
+
+    @Query("UPDATE tags SET color = :color WHERE id = :tagId")
+    suspend fun updateTagColor(tagId: Long, color: String?)
+
+    @Query("DELETE FROM tags WHERE id = :tagId")
+    suspend fun deleteTag(tagId: Long)
 }

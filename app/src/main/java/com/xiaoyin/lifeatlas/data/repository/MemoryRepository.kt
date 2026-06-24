@@ -106,6 +106,28 @@ class MemoryRepository(
         memoryRecordDao.deleteById(id)
     }
 
+    suspend fun renameTag(tagId: Long, newName: String) {
+        val normalizedName = newName.trim()
+        require(normalizedName.isNotBlank()) { "标签名称不能为空" }
+
+        val current = tagDao.findById(tagId) ?: error("标签不存在")
+        val existing = tagDao.findByName(normalizedName)
+        require(existing == null || existing.id == tagId) { "已存在同名标签" }
+        if (current.name == normalizedName) return
+
+        tagDao.updateTagName(tagId, normalizedName)
+    }
+
+    suspend fun updateTagColor(tagId: Long, color: String?) {
+        tagDao.findById(tagId) ?: error("标签不存在")
+        tagDao.updateTagColor(tagId, color)
+    }
+
+    suspend fun deleteTag(tagId: Long) {
+        tagDao.findById(tagId) ?: error("标签不存在")
+        tagDao.deleteTag(tagId)
+    }
+
     private suspend fun addPhotos(recordId: Long, photoUris: List<String>) {
         if (photoUris.isEmpty()) return
 
