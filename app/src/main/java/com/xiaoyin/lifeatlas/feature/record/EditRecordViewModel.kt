@@ -29,6 +29,7 @@ data class EditRecordUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
+    val infoMessage: String? = null,
     val saved: Boolean = false
 ) {
     val canSave: Boolean
@@ -75,7 +76,7 @@ class EditRecordViewModel(
     }
 
     fun onTitleChange(value: String) {
-        _uiState.update { it.copy(title = value, errorMessage = null) }
+        _uiState.update { it.copy(title = value, errorMessage = null, infoMessage = null) }
     }
 
     fun onContentChange(value: String) {
@@ -91,11 +92,11 @@ class EditRecordViewModel(
     }
 
     fun onLatitudeChange(value: String) {
-        _uiState.update { it.copy(latitudeText = value, errorMessage = null) }
+        _uiState.update { it.copy(latitudeText = value, errorMessage = null, infoMessage = null) }
     }
 
     fun onLongitudeChange(value: String) {
-        _uiState.update { it.copy(longitudeText = value, errorMessage = null) }
+        _uiState.update { it.copy(longitudeText = value, errorMessage = null, infoMessage = null) }
     }
 
     fun onMapPointSelected(latitude: Double, longitude: Double, address: String?) {
@@ -104,7 +105,8 @@ class EditRecordViewModel(
                 latitudeText = latitude.toString(),
                 longitudeText = longitude.toString(),
                 locationName = address ?: it.locationName,
-                errorMessage = null
+                errorMessage = null,
+                infoMessage = "已从地图回填位置"
             )
         }
     }
@@ -123,52 +125,82 @@ class EditRecordViewModel(
 
     fun onPhotosSelected(uris: List<String>) {
         _uiState.update { current ->
-            current.copy(photoUris = (current.photoUris + uris).distinct())
+            if (uris.isEmpty()) {
+                current.copy(infoMessage = "未选择新的照片", errorMessage = null)
+            } else {
+                val merged = (current.photoUris + uris).distinct()
+                val addedCount = merged.size - current.photoUris.size
+                current.copy(
+                    photoUris = merged,
+                    infoMessage = if (addedCount > 0) "已添加 $addedCount 张照片" else "选择的照片已在记录中",
+                    errorMessage = null
+                )
+            }
         }
     }
 
     fun removePhoto(uri: String) {
         _uiState.update { current ->
-            current.copy(photoUris = current.photoUris.filterNot { it == uri })
+            current.copy(
+                photoUris = current.photoUris.filterNot { it == uri },
+                infoMessage = "已移除 1 张照片",
+                errorMessage = null
+            )
         }
     }
 
     fun saveRecord() {
         val state = _uiState.value
         if (state.title.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "请先填写标题") }
+            _uiState.update { it.copy(errorMessage = "请先填写标题", infoMessage = null) }
             return
         }
         val coordinate = state.parseCoordinateOrNull()
         if (coordinate == null && (state.latitudeText.isNotBlank() || state.longitudeText.isNotBlank())) {
-            _uiState.update { it.copy(errorMessage = "请填写有效经纬度，纬度范围 -90 到 90，经度范围 -180 到 180") }
+            _uiState.update {
+                it.copy(
+                    errorMessage = "坐标格式不正确。纬度范围 -90 到 90，经度范围 -180 到 180；如果暂时不确定，可以清空坐标后保存。",
+                    infoMessage = null
+                )
+            }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, errorMessage = null) }
-            repository.updateRecord(
-                MemoryRecord(
-                    id = state.recordId,
-                    title = state.title.trim(),
-                    content = state.content.trim(),
-                    recordTime = state.recordTime,
-                    latitude = coordinate?.latitude,
-                    longitude = coordinate?.longitude,
-                    locationName = state.locationName.trim().ifBlank { null },
-                    mood = state.mood.trim().ifBlank { null },
-                    importance = state.importance.toInt(),
-                    createdAt = state.createdAt,
-                    updatedAt = System.currentTimeMillis()
-                ),
-                tagNames = state.tagsText.toTagNames(),
-                photoUris = state.photoUris
-            )
-            _uiState.update {
-                it.copy(
-                    isSaving = false,
-                    saved = true
+            _uiState.update { it.copy(isSaving = true, errorMessage = null, infoMessage = null) }
+            runCatching {
+                repository.updateRecord(
+                    MemoryRecord(
+                        id = state.recordId,
+                        title = state.title.trim(),
+                        content = state.content.trim(),
+                        recordTime = state.recordTime,
+                        latitude = coordinate?.latitude,
+                        longitude = coordinate?.longitude,
+                        locationName = state.locationName.trim().ifBlank { null },
+                        mood = state.mood.trim().ifBlank { null },
+                        importance = state.importance.toInt(),
+                        createdAt = state.createdAt,
+                        updatedAt = System.currentTimeMillis()
+                    ),
+                    tagNames = state.tagsText.toTagNames(),
+                    photoUris = state.photoUris
                 )
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        saved = true
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = error.toSaveErrorMessage(),
+                        infoMessage = null
+                    )
+                }
             }
         }
     }
@@ -194,6 +226,11 @@ private fun MemoryRecord.toUiState(tagsText: String, photoUris: List<String>): E
         createdAt = createdAt,
         isLoading = false
     )
+}
+
+private fun Throwable.toSaveErrorMessage(): String {
+    return message?.takeIf { it.isNotBlank() }?.let { "保存失败：$it" }
+        ?: "保存失败，请稍后重试。已填写内容仍保留在当前页面。"
 }
 
 private data class EditRecordCoordinate(val latitude: Double, val longitude: Double)

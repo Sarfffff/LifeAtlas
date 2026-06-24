@@ -199,6 +199,13 @@ fun EditRecordRoute(
                     color = MaterialTheme.colorScheme.error
                 )
             }
+            uiState.infoMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             Button(
                 onClick = viewModel::saveRecord,
                 enabled = uiState.canSave,
