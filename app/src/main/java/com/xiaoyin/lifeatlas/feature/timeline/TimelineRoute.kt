@@ -140,7 +140,14 @@ private fun TimelineTagFilter(
     selectedTagId: Long?,
     onSelectTag: (Long?) -> Unit
 ) {
-    if (tags.isEmpty()) return
+    if (tags.isEmpty()) {
+        Text(
+            text = "暂无标签。新增或编辑记录时填写标签后，可在这里筛选。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+        )
+        return
+    }
 
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
