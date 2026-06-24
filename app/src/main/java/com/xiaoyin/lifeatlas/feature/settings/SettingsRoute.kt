@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xiaoyin.lifeatlas.BuildConfig
 import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
@@ -150,6 +151,10 @@ fun SettingsRoute(
             title = "地图配置",
             body = "供应商：${MapSdkConfig.provider.displayName}\nKey 状态：${if (MapSdkConfig.isAmapConfigured) "已配置" else "未配置"}"
         )
+        SettingCard(
+            title = "版本信息",
+            body = "版本：${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）\n包名：${BuildConfig.APPLICATION_ID}\n模式：${if (uiState.localFirstEnabled) "本地优先" else "本地优先已关闭"}"
+        )
         uiState.message?.let { message ->
             Text(
                 text = message,
@@ -157,7 +162,7 @@ fun SettingsRoute(
                 color = MaterialTheme.colorScheme.primary
             )
         }
-        SettingCard(title = "关于岁迹", body = "岁迹 | 我的人生地图")
+        SettingCard(title = "关于岁迹", body = "岁迹 | 我的人生地图\n当前阶段：V0.1 本地可用版，准备进入 V1.0 回归测试")
     }
 
     uiState.importPreview?.let { preview ->
