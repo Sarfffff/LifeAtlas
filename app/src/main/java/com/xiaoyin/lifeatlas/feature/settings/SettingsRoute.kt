@@ -167,7 +167,7 @@ fun SettingsRoute(
                 }
             )
         }
-        SettingCard(title = "关于岁迹", body = "岁迹 | 我的人生地图\n当前阶段：V1.0 候选版，进入发布前回归测试")
+        SettingCard(title = "关于岁迹", body = "岁迹 | 我的人生地图\n当前阶段：V1.0 正式体验版，等待体验反馈")
     }
 
     uiState.importPreview?.let { preview ->

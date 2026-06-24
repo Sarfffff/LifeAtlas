@@ -31,8 +31,8 @@ android {
         applicationId = "com.xiaoyin.lifeatlas"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.0.0-rc1"
+        versionCode = 11
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         val amapApiKey = localProperty("lifeatlas.amap.apiKey")
@@ -60,7 +60,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (hasReleaseSigningConfig) {
                 signingConfig = signingConfigs.getByName("release")
             }
