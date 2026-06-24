@@ -119,6 +119,10 @@ fun SettingsRoute(
         }
         SettingGroup(title = "数据背包", tint = WildernessWildflower) {
             SettingCard(
+                title = "它是做什么的？",
+                body = "数据背包用于把你的记录、标签、地点和照片缓存打包带走。换手机、重装 App 或备份重要记忆时使用。"
+            )
+            SettingCard(
                 title = "数据导出",
                 body = "导出记录、照片 URI、标签和关联关系为 JSON 文件。",
                 trailing = {

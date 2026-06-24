@@ -5,12 +5,19 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,11 +34,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.time.formatDate
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import androidx.compose.material3.rememberDatePickerState
 import coil.compose.AsyncImage
 
@@ -73,10 +86,16 @@ fun AddRecordRoute(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(text = "新增记录", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(text = "写新记忆", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+        Text(
+            text = "标题是必填项。照片、地点和标签都可以之后再补。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+        )
         OutlinedTextField(
             value = uiState.title,
             onValueChange = viewModel::onTitleChange,
@@ -134,7 +153,7 @@ fun AddRecordRoute(
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("地图选点")
+            Text("地图选点 / 使用定位")
         }
         OutlinedTextField(
             value = uiState.mood,
@@ -169,22 +188,48 @@ fun AddRecordRoute(
             Text("选择照片（${uiState.photoUris.size}）")
         }
         if (uiState.photoUris.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 uiState.photoUris.forEach { uri ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
                     ) {
-                        AsyncImage(
-                            model = uri,
-                            contentDescription = "已选择照片",
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = { viewModel.removePhoto(uri) }) {
-                            Text("移除")
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AsyncImage(
+                                model = uri,
+                                contentDescription = "已选择照片",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(96.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(WildernessSky.copy(alpha = 0.35f))
+                            )
+                            TextButton(onClick = { viewModel.removePhoto(uri) }) {
+                                Text("移除")
+                            }
                         }
                     }
                 }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(76.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "还没有选择照片，可以先保存文字记录。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                )
             }
         }
         uiState.errorMessage?.let { message ->
@@ -206,8 +251,19 @@ fun AddRecordRoute(
             enabled = uiState.canSave,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (uiState.isSaving) "保存中" else "保存")
+            Text(
+                when {
+                    uiState.isSaving -> "保存中"
+                    uiState.title.isBlank() -> "填写标题后保存"
+                    else -> "确认保存"
+                }
+            )
         }
+        Text(
+            text = "如果按钮不可点，请先填写标题。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.56f)
+        )
     }
 
     if (showDatePicker) {

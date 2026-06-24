@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -26,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,7 +40,9 @@ import com.xiaoyin.lifeatlas.core.map.AmapReverseGeocoder
 import com.xiaoyin.lifeatlas.core.map.MapPickerPoint
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.map.ReverseGeocodeResult
-import com.xiaoyin.lifeatlas.core.ui.theme.AtlasMist
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -107,20 +114,46 @@ fun MapPickerRoute(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(text = "地图选点", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(text = "地图选点", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+        Text(
+            text = if (MapSdkConfig.isAmapConfigured) {
+                "点击地图，或者使用当前位置，把这一段记忆钉在世界上。"
+            } else {
+                "当前没有配置高德 Key，真实地图不可用；你仍然可以授权定位获取当前位置，或返回表单手动填写经纬度。"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+        )
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = AtlasMist)
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = WildernessPaper)
         ) {
             if (MapSdkConfig.isAmapConfigured) {
-                AmapMapPickerView(
-                    selectedPoint = selectedPoint,
-                    onPointSelected = { point -> selectedPoint = point },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(360.dp)
-                )
+                ) {
+                    AmapMapPickerView(
+                        selectedPoint = selectedPoint,
+                        onPointSelected = { point -> selectedPoint = point },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    CenterMapPin(
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                    Text(
+                        text = "拖动地图，定位针所在处即为记录位置",
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 14.dp)
+                            .background(WildernessPaper.copy(alpha = 0.9f), RoundedCornerShape(18.dp))
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WildernessTeal
+                    )
+                }
             } else {
                 MapPickerUnavailableContent()
             }
@@ -130,7 +163,7 @@ fun MapPickerRoute(
                 point.address?.let { address ->
                     "已选择：$address\n${point.latitude}, ${point.longitude}"
                 } ?: "已选择：${point.latitude}, ${point.longitude}"
-            } ?: "点击地图选择记录位置。",
+            } ?: if (MapSdkConfig.isAmapConfigured) "点击地图选择记录位置。" else "可点击“使用当前位置”申请定位权限。也可以返回表单手动填写经纬度。",
             style = MaterialTheme.typography.bodyMedium
         )
         message?.let { text ->
@@ -205,6 +238,29 @@ fun MapPickerRoute(
     }
 }
 
+@Composable
+private fun CenterMapPin(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Place,
+            contentDescription = "中心定位针",
+            tint = WildernessTeal,
+            modifier = Modifier
+                .size(54.dp)
+                .shadow(8.dp, RoundedCornerShape(28.dp))
+        )
+        Box(
+            modifier = Modifier
+                .padding(top = 42.dp)
+                .size(10.dp)
+                .background(WildernessMeadow, RoundedCornerShape(5.dp))
+        )
+    }
+}
+
 private fun resolveAddress(
     point: MapPickerPoint,
     reverseGeocoder: AmapReverseGeocoder,
@@ -258,13 +314,20 @@ private fun MapPickerUnavailableContent() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "地图 Key 未配置",
+            text = "真实地图需要高德 Key",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold,
+                color = WildernessTeal
             )
             Text(
-                text = "请在 local.properties 中配置 lifeatlas.amap.apiKey 后重新构建。",
-                style = MaterialTheme.typography.bodyMedium
+                text = "定位权限只能获取当前位置，不能替代地图服务 Key。你可以先用当前位置或手动经纬度保存记录。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+            )
+            Text(
+                text = "配置方式：local.properties 添加 lifeatlas.amap.apiKey=你的高德 Key 后重新构建。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
             )
         }
     }

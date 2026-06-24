@@ -9,10 +9,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.amap.api.maps.AMap
 import com.amap.api.maps.CameraUpdateFactory
+import com.amap.api.maps.model.CameraPosition
 import com.amap.api.maps.MapView
 import com.amap.api.maps.model.LatLng
-import com.amap.api.maps.model.MarkerOptions
 
 @Composable
 fun AmapMapPickerView(
@@ -61,7 +62,21 @@ private fun MapView.configurePicker(
     onPointSelected: (MapPickerPoint) -> Unit
 ) {
     val amap = map
+    amap.setOnCameraChangeListener(object : AMap.OnCameraChangeListener {
+        override fun onCameraChange(position: CameraPosition) = Unit
+
+        override fun onCameraChangeFinish(position: CameraPosition) {
+            val center = position.target ?: return
+            onPointSelected(
+                MapPickerPoint(
+                    latitude = center.latitude,
+                    longitude = center.longitude
+                )
+            )
+        }
+    })
     amap.setOnMapClickListener { latLng ->
+        amap.animateCamera(CameraUpdateFactory.newLatLng(latLng))
         onPointSelected(
             MapPickerPoint(
                 latitude = latLng.latitude,
@@ -70,15 +85,8 @@ private fun MapView.configurePicker(
         )
     }
 
-    amap.clear()
     if (selectedPoint != null) {
         val position = LatLng(selectedPoint.latitude, selectedPoint.longitude)
-        amap.addMarker(
-            MarkerOptions()
-                .position(position)
-                .title("已选择的位置")
-                .snippet("${selectedPoint.latitude}, ${selectedPoint.longitude}")
-        )
         amap.moveCamera(CameraUpdateFactory.newLatLngZoom(position, 14f))
     }
 }
