@@ -153,6 +153,9 @@ fun LifeAtlasNavHost() {
                 MapRoute(
                     onRecordClick = { recordId ->
                         navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
+                    },
+                    onAddMemoryClick = {
+                        navController.navigate(LifeAtlasDestination.AddRecord.route)
                     }
                 )
             }

@@ -15,6 +15,8 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 private val Context.authDataStore by preferencesDataStore(name = "lifeatlas_auth")
 
@@ -214,10 +216,13 @@ class AuthRepository(context: Context) {
         val snapshot = dataStore.data.first()
         enforceRegisterRateLimit(snapshot[REGISTER_WINDOW_START], snapshot[REGISTER_COUNT])
         val auth = firebaseAuthOrError()
-        val result = auth.createUserWithEmailAndPassword(email, password).await()
-        val verificationSent = runCatching {
+        val result = withTimeout(FIREBASE_REQUEST_TIMEOUT_MS) {
+            auth.createUserWithEmailAndPassword(email, password).await()
+        }
+        val verificationSent = withTimeoutOrNull(FIREBASE_EMAIL_TIMEOUT_MS) {
             result.user?.sendEmailVerification()?.await()
-        }.isSuccess
+            true
+        } == true
         dataStore.edit { preferences ->
             recordRegisterAttempt(preferences)
             saveFirebaseSession(preferences, email, emailVerified = result.user?.isEmailVerified == true)
@@ -229,7 +234,9 @@ class AuthRepository(context: Context) {
         val snapshot = dataStore.data.first()
         enforceLoginLock(snapshot[LOGIN_LOCKED_UNTIL])
         runCatching {
-            FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password).await()
+            withTimeout(FIREBASE_REQUEST_TIMEOUT_MS) {
+                FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password).await()
+            }
         }.onSuccess { result ->
             val user = result.user
             dataStore.edit { preferences ->
@@ -317,5 +324,7 @@ class AuthRepository(context: Context) {
         const val LOGIN_LOCK_MS = 10 * 60 * 1000L
         const val REGISTER_WINDOW_MS = 60 * 60 * 1000L
         const val MAX_REGISTER_ATTEMPTS_PER_WINDOW = 3L
+        const val FIREBASE_REQUEST_TIMEOUT_MS = 25_000L
+        const val FIREBASE_EMAIL_TIMEOUT_MS = 12_000L
     }
 }

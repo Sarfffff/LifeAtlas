@@ -88,6 +88,10 @@ fun SettingsRoute(
     val uiState by viewModel.uiState.collectAsState()
     var showProfileEditor by remember { mutableStateOf(false) }
     var showDataPanel by remember { mutableStateOf(false) }
+    var showSyncPanel by remember { mutableStateOf(false) }
+    var showMapPanel by remember { mutableStateOf(false) }
+    var showPreferencePanel by remember { mutableStateOf(false) }
+    var showAccountPanel by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) viewModel.writeExport(uri) else viewModel.onExportLaunchHandled()
@@ -138,8 +142,8 @@ fun SettingsRoute(
             SettingsRow(
                 icon = Icons.Outlined.Sync,
                 title = "多设备同步",
-                subtitle = "通过备份包在手机之间迁移和恢复",
-                onClick = { showDataPanel = true }
+                subtitle = "查看当前同步方式和后续云同步计划",
+                onClick = { showSyncPanel = true }
             )
         }
 
@@ -148,14 +152,14 @@ fun SettingsRoute(
                 icon = Icons.Outlined.LocationOn,
                 title = "地图配置",
                 subtitle = "${MapSdkConfig.provider.displayName} · Key ${MapSdkConfig.statusText}",
-                onClick = onAccountClick
+                onClick = { showMapPanel = true }
             )
             SettingsDivider()
             SettingsRow(
                 icon = Icons.Outlined.EditNote,
                 title = "记录偏好",
-                subtitle = "标签、天气、心情等设置",
-                onClick = onTagManagementClick
+                subtitle = "默认记录习惯、标签和照片说明",
+                onClick = { showPreferencePanel = true }
             )
         }
 
@@ -164,7 +168,7 @@ fun SettingsRoute(
                 icon = Icons.Outlined.PrivacyTip,
                 title = "账号与安全",
                 subtitle = "邮箱验证、密码登录与登录状态管理",
-                onClick = onAccountClick
+                onClick = { showAccountPanel = true }
             )
             SettingsDivider()
             SettingsRow(
@@ -228,6 +232,54 @@ fun SettingsRoute(
                 importLauncher.launch(arrayOf("application/json", "text/*", "application/zip", "application/octet-stream"))
             },
             onLocalFirstChange = viewModel::onLocalFirstChange
+        )
+    }
+
+    if (showSyncPanel) {
+        SimpleSettingsDialog(
+            title = "多设备同步",
+            body = "当前版本采用“备份包迁移”：在旧手机导出完整备份包，在新手机选择恢复即可带走记录、标签、地点和照片缓存。后续接入云端数据库后，会升级为账号自动同步。",
+            confirmText = "导出/恢复备份",
+            onConfirm = {
+                showSyncPanel = false
+                showDataPanel = true
+            },
+            onDismiss = { showSyncPanel = false }
+        )
+    }
+
+    if (showMapPanel) {
+        SimpleSettingsDialog(
+            title = "地图配置",
+            body = "当前地图服务：${MapSdkConfig.provider.displayName}\nKey 状态：${MapSdkConfig.statusText}\n\n地图页会点亮带经纬度的记录。新增或编辑记录时使用“地图选点”，保存后该事件会成为地图上的一枚坐标。",
+            confirmText = "知道了",
+            onConfirm = { showMapPanel = false },
+            onDismiss = { showMapPanel = false }
+        )
+    }
+
+    if (showPreferencePanel) {
+        RecordPreferenceDialog(
+            localFirstEnabled = uiState.localFirstEnabled,
+            onLocalFirstChange = viewModel::onLocalFirstChange,
+            onManageTags = {
+                showPreferencePanel = false
+                onTagManagementClick()
+            },
+            onDismiss = { showPreferencePanel = false }
+        )
+    }
+
+    if (showAccountPanel) {
+        SimpleSettingsDialog(
+            title = "账号与安全",
+            body = "这里用于管理邮箱登录、邮箱验证、忘记密码和退出登录。点击下方按钮会进入账号管理页；如果已经登录，会显示账号状态，不会要求重新注册。",
+            confirmText = "管理账号",
+            onConfirm = {
+                showAccountPanel = false
+                onAccountClick()
+            },
+            onDismiss = { showAccountPanel = false }
         )
     }
 
@@ -428,6 +480,77 @@ private fun DataSyncDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("完成")
+            }
+        }
+    )
+}
+
+@Composable
+private fun RecordPreferenceDialog(
+    localFirstEnabled: Boolean,
+    onLocalFirstChange: (Boolean) -> Unit,
+    onManageTags: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("记录偏好") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("这里集中管理写记录时常用的习惯设置。当前先提供本地优先开关、标签管理入口和照片存储说明。")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("本地优先", fontWeight = FontWeight.Black, color = WildernessTeal)
+                        Text("默认不自动上传个人记录", style = MaterialTheme.typography.bodyMedium, color = WildernessMuted)
+                    }
+                    Switch(checked = localFirstEnabled, onCheckedChange = onLocalFirstChange)
+                }
+                Text("照片策略：当前优先缓存到 App 私有目录，备份包会尽量携带可读取的照片缓存。")
+                OutlinedButton(onClick = onManageTags, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.EditNote, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("管理标签")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("完成")
+            }
+        }
+    )
+}
+
+@Composable
+private fun SimpleSettingsDialog(
+    title: String,
+    body: String,
+    confirmText: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyLarge,
+                color = WildernessMuted
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(confirmText)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
             }
         }
     )

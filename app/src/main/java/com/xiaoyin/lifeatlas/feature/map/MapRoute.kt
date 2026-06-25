@@ -1,5 +1,6 @@
 package com.xiaoyin.lifeatlas.feature.map
 
+import android.content.Intent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -23,11 +24,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddLocationAlt
+import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -55,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -81,12 +87,15 @@ import kotlinx.coroutines.delay
 @Composable
 fun MapRoute(
     onRecordClick: (Long) -> Unit,
+    onAddMemoryClick: () -> Unit,
     viewModel: MapViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val records = uiState.locatedRecords
     var selectedIndex by remember(records) { mutableIntStateOf(0) }
     var userSelected by remember(records) { mutableStateOf(false) }
+    var favoriteRecordIds by remember { mutableStateOf(setOf<Long>()) }
 
     LaunchedEffect(records, userSelected) {
         if (records.isEmpty() || userSelected) return@LaunchedEffect
@@ -138,6 +147,13 @@ fun MapRoute(
                 .padding(end = 18.dp, bottom = 54.dp)
         )
 
+        NewMapMemoryButton(
+            onClick = onAddMemoryClick,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 18.dp, bottom = 54.dp)
+        )
+
         if (selectedRecord == null) {
             EmptyMapMemoryCard(
                 modifier = Modifier
@@ -148,6 +164,26 @@ fun MapRoute(
             MapMemorySheet(
                 record = selectedRecord,
                 photo = uiState.firstPhotosByRecordId[selectedRecord.id],
+                isFavorite = selectedRecord.id in favoriteRecordIds,
+                onFavoriteClick = {
+                    favoriteRecordIds = if (selectedRecord.id in favoriteRecordIds) {
+                        favoriteRecordIds - selectedRecord.id
+                    } else {
+                        favoriteRecordIds + selectedRecord.id
+                    }
+                },
+                onShareClick = {
+                    context.startActivity(
+                        Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "岁迹记忆：${selectedRecord.title}")
+                                putExtra(Intent.EXTRA_TEXT, selectedRecord.toShareText())
+                            },
+                            "分享这段记忆"
+                        )
+                    )
+                },
                 onDetailClick = { onRecordClick(selectedRecord.id) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -354,7 +390,32 @@ private fun MapLocateButton(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MapMemorySheet(record: MemoryRecord, photo: Photo?, onDetailClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun NewMapMemoryButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .shadow(8.dp, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(WildernessPaper)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(Icons.Outlined.AddLocationAlt, contentDescription = null, tint = WildernessTeal, modifier = Modifier.size(22.dp))
+        Text("点亮新城市", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+    }
+}
+
+@Composable
+private fun MapMemorySheet(
+    record: MemoryRecord,
+    photo: Photo?,
+    isFavorite: Boolean,
+    onFavoriteClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onDetailClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 24.dp, bottomEnd = 24.dp),
@@ -398,10 +459,14 @@ private fun MapMemorySheet(record: MemoryRecord, photo: Photo?, onDetailClick: (
             }
             Spacer(modifier = Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = {}, modifier = Modifier.weight(1.05f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
-                    Text("收藏", fontWeight = FontWeight.Black, maxLines = 1)
+                OutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1.05f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+                    Icon(if (isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(if (isFavorite) "已收藏" else "收藏", fontWeight = FontWeight.Black, maxLines = 1)
                 }
-                OutlinedButton(onClick = {}, modifier = Modifier.weight(1.05f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+                OutlinedButton(onClick = onShareClick, modifier = Modifier.weight(1.05f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text("分享", fontWeight = FontWeight.Black, maxLines = 1)
                 }
                 Button(onClick = onDetailClick, modifier = Modifier.weight(1.55f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)) {
@@ -477,4 +542,14 @@ private fun markerOffsetY(index: Int): Dp {
 
 private fun MemoryRecord.dateText(): String {
     return recordTime.formatDate().replace("-", ".")
+}
+
+private fun MemoryRecord.toShareText(): String {
+    val place = locationName?.takeIf { it.isNotBlank() } ?: "未填写地点"
+    val coordinate = if (latitude != null && longitude != null) {
+        "\n坐标：$latitude, $longitude"
+    } else {
+        ""
+    }
+    return "我在岁迹点亮了一段记忆：$title\n地点：$place\n日期：${recordTime.formatDate()}$coordinate\n\n${content.ifBlank { "这处坐标已经被我的记忆点亮。" }}"
 }
