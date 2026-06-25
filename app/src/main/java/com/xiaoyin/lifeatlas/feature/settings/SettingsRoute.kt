@@ -81,6 +81,7 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsRoute(
+    onAccountClick: () -> Unit,
     onTagManagementClick: () -> Unit,
     viewModel: SettingsViewModel = viewModel()
 ) {
@@ -147,7 +148,7 @@ fun SettingsRoute(
                 icon = Icons.Outlined.LocationOn,
                 title = "地图配置",
                 subtitle = "${MapSdkConfig.provider.displayName} · Key ${MapSdkConfig.statusText}",
-                onClick = {}
+                onClick = onAccountClick
             )
             SettingsDivider()
             SettingsRow(

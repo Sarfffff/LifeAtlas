@@ -33,6 +33,7 @@ import androidx.navigation.NavType
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
+import com.xiaoyin.lifeatlas.feature.auth.AuthRoute
 import com.xiaoyin.lifeatlas.feature.home.HomeRoute
 import com.xiaoyin.lifeatlas.feature.map.MapRoute
 import com.xiaoyin.lifeatlas.feature.map.MapPickerRoute
@@ -137,9 +138,17 @@ fun LifeAtlasNavHost() {
             }
             composable(LifeAtlasDestination.Settings.route) {
                 SettingsRoute(
+                    onAccountClick = {
+                        navController.navigate(LifeAtlasDestination.Auth.route)
+                    },
                     onTagManagementClick = {
                         navController.navigate(LifeAtlasDestination.TagManagement.route)
                     }
+                )
+            }
+            composable(LifeAtlasDestination.Auth.route) {
+                AuthRoute(
+                    onContinue = { navController.popBackStack() }
                 )
             }
             composable(LifeAtlasDestination.TagManagement.route) {

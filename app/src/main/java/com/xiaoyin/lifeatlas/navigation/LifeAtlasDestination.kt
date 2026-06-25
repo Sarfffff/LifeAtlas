@@ -19,6 +19,10 @@ sealed class LifeAtlasDestination(
     data object Map : LifeAtlasDestination("map", "地图", Icons.Outlined.Map)
     data object Settings : LifeAtlasDestination("settings", "设置", Icons.Outlined.Settings)
 
+    data object Auth {
+        const val route = "auth"
+    }
+
     data object RecordDetail {
         const val route = "record_detail/{recordId}"
         const val recordIdArg = "recordId"
