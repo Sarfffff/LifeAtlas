@@ -7,6 +7,8 @@ import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.ui.graphics.vector.ImageVector
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 sealed class LifeAtlasDestination(
     val route: String,
@@ -62,6 +64,16 @@ sealed class LifeAtlasDestination(
 
     data object Favorites {
         const val route = "favorites"
+    }
+
+    data object CityDetail {
+        const val route = "city_detail/{city}"
+        const val cityArg = "city"
+
+        fun createRoute(city: String): String {
+            val encodedCity = URLEncoder.encode(city, StandardCharsets.UTF_8.name())
+            return "city_detail/$encodedCity"
+        }
     }
 }
 

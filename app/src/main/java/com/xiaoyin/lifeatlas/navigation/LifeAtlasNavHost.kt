@@ -39,6 +39,7 @@ import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.feature.auth.AuthRoute
+import com.xiaoyin.lifeatlas.feature.city.CityDetailRoute
 import com.xiaoyin.lifeatlas.feature.favorites.FavoriteCenterRoute
 import com.xiaoyin.lifeatlas.feature.home.HomeRoute
 import com.xiaoyin.lifeatlas.feature.map.MapRoute
@@ -172,6 +173,9 @@ fun LifeAtlasNavHost() {
                     },
                     onAddMemoryClick = {
                         navController.navigate(LifeAtlasDestination.AddRecord.route)
+                    },
+                    onCityDetailClick = { city ->
+                        navController.navigate(LifeAtlasDestination.CityDetail.createRoute(city))
                     }
                 )
             }
@@ -233,6 +237,21 @@ fun LifeAtlasNavHost() {
             }
             composable(LifeAtlasDestination.Favorites.route) {
                 FavoriteCenterRoute(
+                    onBack = { navController.popBackStack() },
+                    onRecordClick = { recordId ->
+                        navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
+                    }
+                )
+            }
+            composable(
+                route = LifeAtlasDestination.CityDetail.route,
+                arguments = listOf(
+                    navArgument(LifeAtlasDestination.CityDetail.cityArg) {
+                        type = NavType.StringType
+                    }
+                )
+            ) {
+                CityDetailRoute(
                     onBack = { navController.popBackStack() },
                     onRecordClick = { recordId ->
                         navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))

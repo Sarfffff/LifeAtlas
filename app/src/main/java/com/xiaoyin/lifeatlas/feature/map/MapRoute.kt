@@ -91,6 +91,7 @@ import kotlinx.coroutines.delay
 fun MapRoute(
     onRecordClick: (Long) -> Unit,
     onAddMemoryClick: () -> Unit,
+    onCityDetailClick: (String) -> Unit,
     viewModel: MapViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -239,6 +240,7 @@ fun MapRoute(
                         )
                     )
                 },
+                onCityDetailClick = { onCityDetailClick(selectedCity ?: selectedRecord.mapCityKey()) },
                 onDetailClick = { onRecordClick(selectedRecord.id) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -585,6 +587,7 @@ private fun MapMemorySheet(
     isFavorite: Boolean,
     onFavoriteClick: () -> Unit,
     onShareClick: () -> Unit,
+    onCityDetailClick: () -> Unit,
     onDetailClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -619,12 +622,20 @@ private fun MapMemorySheet(
                         Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.75f))
                     }
                     Text(text = record.dateText(), style = MaterialTheme.typography.bodyMedium, color = WildernessMuted)
-                    Text(
-                        text = "$currentCity · 共点亮 $litCityCount 座城市/地点",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = WildernessTeal.copy(alpha = 0.72f)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "$currentCity · 共点亮 $litCityCount 座城市/地点",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = WildernessTeal.copy(alpha = 0.72f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onCityDetailClick) {
+                            Text("城市详情", fontWeight = FontWeight.Black, color = WildernessTeal)
+                        }
+                    }
                     Text(
                         text = record.content.ifBlank { "这处坐标已经被你的记忆点亮。" },
                         style = MaterialTheme.typography.bodyMedium,
