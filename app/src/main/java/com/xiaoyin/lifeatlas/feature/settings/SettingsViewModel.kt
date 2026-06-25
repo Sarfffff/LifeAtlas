@@ -4,7 +4,9 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.xiaoyin.lifeatlas.core.auth.AuthRepository
 import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
+import com.xiaoyin.lifeatlas.core.datastore.CloudSyncSettings
 import com.xiaoyin.lifeatlas.core.datastore.RecordPreferenceSettings
 import com.xiaoyin.lifeatlas.core.datastore.UserProfileSettings
 import com.xiaoyin.lifeatlas.data.export.BackupKind
@@ -25,10 +27,13 @@ data class SettingsUiState(
     val localFirstEnabled: Boolean = true,
     val profile: UserProfileSettings = UserProfileSettings(),
     val recordPreferences: RecordPreferenceSettings = RecordPreferenceSettings(),
+    val cloudSyncSettings: CloudSyncSettings = CloudSyncSettings(),
+    val firebaseConfigured: Boolean = false,
     val isExporting: Boolean = false,
     val isExportingBackup: Boolean = false,
     val isImporting: Boolean = false,
     val isPreparingImport: Boolean = false,
+    val isPreparingCloudSync: Boolean = false,
     val pendingExportJson: String? = null,
     val pendingBackupExport: Boolean = false,
     val pendingBackupZipUri: Uri? = null,
@@ -51,6 +56,7 @@ enum class SettingsMessageType {
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val exportService = ExportServiceProvider.exportService(application)
     private val settingsRepository = AppSettingsRepository(application)
+    private val authRepository = AuthRepository(application)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState
@@ -60,15 +66,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             combine(
                 settingsRepository.localFirstEnabled,
                 settingsRepository.userProfile,
-                settingsRepository.recordPreferences
-            ) { localFirstEnabled, profile, recordPreferences ->
-                Triple(localFirstEnabled, profile, recordPreferences)
-            }.collect { (enabled, profile, recordPreferences) ->
+                settingsRepository.recordPreferences,
+                settingsRepository.cloudSyncSettings
+            ) { localFirstEnabled, profile, recordPreferences, cloudSyncSettings ->
+                SettingsUiState(
+                    localFirstEnabled = localFirstEnabled,
+                    profile = profile,
+                    recordPreferences = recordPreferences,
+                    cloudSyncSettings = cloudSyncSettings,
+                    firebaseConfigured = authRepository.isFirebaseConfigured()
+                )
+            }.collect { settingsState ->
                 _uiState.update {
                     it.copy(
-                        localFirstEnabled = enabled,
-                        profile = profile,
-                        recordPreferences = recordPreferences
+                        localFirstEnabled = settingsState.localFirstEnabled,
+                        profile = settingsState.profile,
+                        recordPreferences = settingsState.recordPreferences,
+                        cloudSyncSettings = settingsState.cloudSyncSettings,
+                        firebaseConfigured = settingsState.firebaseConfigured
                     )
                 }
             }
@@ -98,6 +113,40 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             settingsRepository.updateRecordPreferences(defaultMood, defaultTags, photoSaveStrategy)
             _uiState.update { it.copy(message = SettingsMessage("记录偏好已保存", SettingsMessageType.Success)) }
+        }
+    }
+
+    fun onCloudSyncEnabledChange(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setCloudSyncEnabled(enabled)
+            _uiState.update {
+                it.copy(
+                    message = SettingsMessage(
+                        if (enabled) "云同步已标记为启用。当前仍保持本地优先，正式上传前会再次确认。" else "云同步已关闭，数据继续只保留在本机和备份包中。",
+                        SettingsMessageType.Info
+                    )
+                )
+            }
+        }
+    }
+
+    fun prepareCloudSync() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPreparingCloudSync = true, message = null) }
+            settingsRepository.markCloudSyncPrepared()
+            _uiState.update {
+                it.copy(
+                    isPreparingCloudSync = false,
+                    message = SettingsMessage(
+                        if (authRepository.isFirebaseConfigured()) {
+                            "云同步准备检查完成：Firebase 已配置。下一阶段可接入云端数据表与冲突合并。"
+                        } else {
+                            "云同步准备检查完成：当前缺少 Firebase 配置，仍建议使用完整备份包迁移。"
+                        },
+                        SettingsMessageType.Info
+                    )
+                )
+            }
         }
     }
 

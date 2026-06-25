@@ -3,6 +3,7 @@ package com.xiaoyin.lifeatlas.core.datastore
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +21,12 @@ data class RecordPreferenceSettings(
     val defaultMood: String = "平静",
     val defaultTags: String = "",
     val photoSaveStrategy: String = "缓存缩略图，保留原图引用"
+)
+
+data class CloudSyncSettings(
+    val enabled: Boolean = false,
+    val provider: String = "Firebase",
+    val lastPreparedAt: Long? = null
 )
 
 class AppSettingsRepository(context: Context) {
@@ -46,6 +53,14 @@ class AppSettingsRepository(context: Context) {
             defaultMood = preferences[DEFAULT_MOOD] ?: "平静",
             defaultTags = preferences[DEFAULT_TAGS] ?: "",
             photoSaveStrategy = preferences[PHOTO_SAVE_STRATEGY] ?: "缓存缩略图，保留原图引用"
+        )
+    }
+
+    val cloudSyncSettings: Flow<CloudSyncSettings> = dataStore.data.map { preferences ->
+        CloudSyncSettings(
+            enabled = preferences[CLOUD_SYNC_ENABLED] ?: false,
+            provider = preferences[CLOUD_SYNC_PROVIDER] ?: "Firebase",
+            lastPreparedAt = preferences[CLOUD_SYNC_LAST_PREPARED_AT]
         )
     }
 
@@ -81,6 +96,19 @@ class AppSettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setCloudSyncEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[CLOUD_SYNC_ENABLED] = enabled
+            preferences[CLOUD_SYNC_PROVIDER] = "Firebase"
+        }
+    }
+
+    suspend fun markCloudSyncPrepared() {
+        dataStore.edit { preferences ->
+            preferences[CLOUD_SYNC_LAST_PREPARED_AT] = System.currentTimeMillis()
+        }
+    }
+
     private companion object {
         val LOCAL_FIRST_ENABLED = booleanPreferencesKey("local_first_enabled")
         val PROFILE_DISPLAY_NAME = stringPreferencesKey("profile_display_name")
@@ -90,5 +118,8 @@ class AppSettingsRepository(context: Context) {
         val DEFAULT_MOOD = stringPreferencesKey("default_mood")
         val DEFAULT_TAGS = stringPreferencesKey("default_tags")
         val PHOTO_SAVE_STRATEGY = stringPreferencesKey("photo_save_strategy")
+        val CLOUD_SYNC_ENABLED = booleanPreferencesKey("cloud_sync_enabled")
+        val CLOUD_SYNC_PROVIDER = stringPreferencesKey("cloud_sync_provider")
+        val CLOUD_SYNC_LAST_PREPARED_AT = longPreferencesKey("cloud_sync_last_prepared_at")
     }
 }

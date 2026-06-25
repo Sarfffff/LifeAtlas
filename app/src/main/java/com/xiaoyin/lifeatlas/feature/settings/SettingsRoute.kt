@@ -92,6 +92,7 @@ fun SettingsRoute(
     var showProfileEditor by remember { mutableStateOf(false) }
     var showDataPanel by remember { mutableStateOf(false) }
     var showSyncPanel by remember { mutableStateOf(false) }
+    var showCloudSyncPanel by remember { mutableStateOf(false) }
     var showMapPanel by remember { mutableStateOf(false) }
     var showPreferencePanel by remember { mutableStateOf(false) }
     var showAccountPanel by remember { mutableStateOf(false) }
@@ -147,7 +148,7 @@ fun SettingsRoute(
                 icon = Icons.Outlined.Sync,
                 title = "多设备同步",
                 subtitle = "查看当前同步方式和后续云同步计划",
-                onClick = { showSyncPanel = true }
+                onClick = { showCloudSyncPanel = true }
             )
         }
 
@@ -270,6 +271,19 @@ fun SettingsRoute(
                 showDataPanel = true
             },
             onDismiss = { showSyncPanel = false }
+        )
+    }
+
+    if (showCloudSyncPanel) {
+        CloudSyncDialog(
+            uiState = uiState,
+            onEnabledChange = viewModel::onCloudSyncEnabledChange,
+            onPrepareCloudSync = viewModel::prepareCloudSync,
+            onOpenBackup = {
+                showCloudSyncPanel = false
+                showDataPanel = true
+            },
+            onDismiss = { showCloudSyncPanel = false }
         )
     }
 
@@ -514,6 +528,79 @@ private fun DataSyncDialog(
             }
         }
     )
+}
+
+@Composable
+private fun CloudSyncDialog(
+    uiState: SettingsUiState,
+    onEnabledChange: (Boolean) -> Unit,
+    onPrepareCloudSync: () -> Unit,
+    onOpenBackup: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("多设备同步") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("当前仍采用本地优先策略。云同步开关用于准备后续账号云端同步，不会在未确认前自动上传个人记录。")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("云同步准备", fontWeight = FontWeight.Black, color = WildernessTeal)
+                        Text(
+                            if (uiState.cloudSyncSettings.enabled) "已启用准备状态" else "未启用，当前仅使用备份包迁移",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = WildernessMuted
+                        )
+                    }
+                    Switch(
+                        checked = uiState.cloudSyncSettings.enabled,
+                        onCheckedChange = onEnabledChange
+                    )
+                }
+                CloudSyncStatusLine("服务提供方", uiState.cloudSyncSettings.provider)
+                CloudSyncStatusLine("Firebase", if (uiState.firebaseConfigured) "已配置" else "未配置")
+                CloudSyncStatusLine("当前上传策略", if (uiState.localFirstEnabled) "本地优先，不自动上传" else "允许后续接入云端同步")
+                CloudSyncStatusLine("最近检查", uiState.cloudSyncSettings.lastPreparedAt?.formatDateTime() ?: "尚未检查")
+                Text(
+                    "正式云同步下一阶段需要接入云端数据表、冲突合并规则、删除同步策略和媒体文件上传策略。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = WildernessMuted
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onPrepareCloudSync, enabled = !uiState.isPreparingCloudSync) {
+                Text(if (uiState.isPreparingCloudSync) "检查中..." else "同步准备检查")
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onOpenBackup) {
+                    Text("备份包迁移")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("关闭")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun CloudSyncStatusLine(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = WildernessMuted)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+    }
 }
 
 @Composable
