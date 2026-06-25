@@ -19,7 +19,8 @@ import kotlinx.coroutines.launch
 private data class TimelineFilterState(
     val query: String,
     val category: String,
-    val showFilters: Boolean
+    val showFilters: Boolean,
+    val favoriteOnly: Boolean
 )
 
 data class TimelineUiState(
@@ -29,7 +30,9 @@ data class TimelineUiState(
     val selectedTagId: Long? = null,
     val searchQuery: String = "",
     val selectedCategory: String = "全部",
-    val showCategoryFilters: Boolean = true
+    val showCategoryFilters: Boolean = true,
+    val favoriteOnly: Boolean = false,
+    val favoriteRecordIds: Set<Long> = emptySet()
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -39,12 +42,14 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
     private val searchQuery = MutableStateFlow("")
     private val selectedCategory = MutableStateFlow("全部")
     private val showCategoryFilters = MutableStateFlow(true)
+    private val favoriteOnly = MutableStateFlow(false)
     private val filterState = combine(
         searchQuery,
         selectedCategory,
-        showCategoryFilters
-    ) { query, category, filtersVisible ->
-        TimelineFilterState(query, category, filtersVisible)
+        showCategoryFilters,
+        favoriteOnly
+    ) { query, category, filtersVisible, favoritesOnly ->
+        TimelineFilterState(query, category, filtersVisible, favoritesOnly)
     }
     private val recordsFlow = selectedTagId.flatMapLatest { tagId ->
         if (tagId == null) {
@@ -53,22 +58,34 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
             repository.observeRecordsByTag(tagId)
         }
     }
+    private val recordsAndFavoritesFlow = combine(
+        recordsFlow,
+        repository.observeFavoriteRecordIds()
+    ) { records, favoriteRecordIds ->
+        records to favoriteRecordIds
+    }
 
     val uiState: StateFlow<TimelineUiState> = combine(
-        recordsFlow,
+        recordsAndFavoritesFlow,
         repository.observeFirstPhotosByRecord(),
         repository.observeAllTags(),
         selectedTagId,
         filterState
-    ) { records, firstPhotos, tags, activeTagId, filters ->
+    ) { recordsAndFavorites, firstPhotos, tags, activeTagId, filters ->
+        val (records, favoriteRecordIds) = recordsAndFavorites
         TimelineUiState(
-            records = records.filterByCategory(filters.category).filterByQuery(filters.query),
+            records = records
+                .filterByFavorite(filters.favoriteOnly, favoriteRecordIds)
+                .filterByCategory(filters.category)
+                .filterByQuery(filters.query),
             firstPhotosByRecordId = firstPhotos,
             tags = tags,
+            favoriteRecordIds = favoriteRecordIds,
             selectedTagId = activeTagId,
             searchQuery = filters.query,
             selectedCategory = filters.category,
-            showCategoryFilters = filters.showFilters
+            showCategoryFilters = filters.showFilters,
+            favoriteOnly = filters.favoriteOnly
         )
     }
         .stateIn(
@@ -95,6 +112,10 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
         showCategoryFilters.update { !it }
     }
 
+    fun toggleFavoriteOnly() {
+        favoriteOnly.update { !it }
+    }
+
     fun onSearchQueryChange(value: String) {
         searchQuery.update { value }
     }
@@ -102,6 +123,11 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
     fun clearSearchQuery() {
         searchQuery.update { "" }
     }
+}
+
+private fun List<MemoryRecord>.filterByFavorite(favoriteOnly: Boolean, favoriteRecordIds: Set<Long>): List<MemoryRecord> {
+    if (!favoriteOnly) return this
+    return filter { it.id in favoriteRecordIds }
 }
 
 private fun List<MemoryRecord>.filterByCategory(category: String): List<MemoryRecord> {

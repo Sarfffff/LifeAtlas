@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
@@ -99,7 +100,9 @@ fun TimelineRoute(
         if (uiState.showCategoryFilters) {
             TimelineCategoryChips(
                 selectedCategory = uiState.selectedCategory,
-                onCategoryClick = viewModel::selectCategory
+                favoriteOnly = uiState.favoriteOnly,
+                onCategoryClick = viewModel::selectCategory,
+                onFavoriteClick = viewModel::toggleFavoriteOnly
             )
         }
         TimelineSearchResultHint(uiState = uiState)
@@ -112,6 +115,7 @@ fun TimelineRoute(
                     group = group,
                     isLast = index == groups.lastIndex,
                     firstPhotosByRecordId = uiState.firstPhotosByRecordId,
+                    favoriteRecordIds = uiState.favoriteRecordIds,
                     onRecordClick = onRecordClick
                 )
             }
@@ -178,7 +182,9 @@ private fun TimelineSearchBar(
 @Composable
 private fun TimelineCategoryChips(
     selectedCategory: String,
-    onCategoryClick: (String) -> Unit
+    favoriteOnly: Boolean,
+    onCategoryClick: (String) -> Unit,
+    onFavoriteClick: () -> Unit
 ) {
     val chips = listOf(
         "全部" to WildernessMeadow,
@@ -188,7 +194,33 @@ private fun TimelineCategoryChips(
         "生活" to WildernessCoral.copy(alpha = 0.35f)
     )
     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(chips.size) { index ->
+        items(chips.size + 1) { index ->
+            if (index == chips.size) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(if (favoriteOnly) WildernessTeal else WildernessPaper)
+                        .clickable(onClick = onFavoriteClick)
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.Bookmark,
+                            contentDescription = null,
+                            tint = if (favoriteOnly) WildernessPaper else WildernessTeal,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "收藏",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Black,
+                            color = if (favoriteOnly) WildernessPaper else WildernessTeal
+                        )
+                    }
+                }
+                return@items
+            }
             val (label, color) = chips[index]
             val selected = label == selectedCategory
             Box(
@@ -212,10 +244,14 @@ private fun TimelineCategoryChips(
 
 @Composable
 private fun TimelineSearchResultHint(uiState: TimelineUiState) {
-    if (uiState.searchQuery.isBlank() && uiState.selectedCategory == "全部") return
+    if (uiState.searchQuery.isBlank() && uiState.selectedCategory == "全部" && !uiState.favoriteOnly) return
 
     Text(
-        text = "找到 ${uiState.records.size} 条匹配记录",
+        text = if (uiState.favoriteOnly) {
+            "收藏夹中找到 ${uiState.records.size} 条记录"
+        } else {
+            "找到 ${uiState.records.size} 条匹配记录"
+        },
         style = MaterialTheme.typography.bodySmall,
         color = WildernessTeal.copy(alpha = 0.62f)
     )
@@ -226,6 +262,7 @@ private fun TimelineMonthSection(
     group: TimelineMonthGroup,
     isLast: Boolean,
     firstPhotosByRecordId: Map<Long, Photo>,
+    favoriteRecordIds: Set<Long>,
     onRecordClick: (Long) -> Unit
 ) {
     Row(
@@ -243,6 +280,7 @@ private fun TimelineMonthSection(
                 TimelineRecordCard(
                     record = record,
                     photo = firstPhotosByRecordId[record.id],
+                    isFavorite = record.id in favoriteRecordIds,
                     onClick = { onRecordClick(record.id) }
                 )
             }
@@ -277,7 +315,7 @@ private fun MonthRail(month: String, year: String, isLast: Boolean, height: Dp) 
 }
 
 @Composable
-private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, onClick: () -> Unit) {
+private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, isFavorite: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -309,6 +347,17 @@ private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, onClick: () 
                         modifier = Modifier.weight(1f)
                     )
                     Icon(imageVector = Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.54f), modifier = Modifier.size(20.dp))
+                }
+                if (isFavorite) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Outlined.Bookmark, contentDescription = null, tint = WildernessWildflower, modifier = Modifier.size(14.dp))
+                        Text(
+                            text = "已收藏",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Black,
+                            color = WildernessTeal.copy(alpha = 0.72f)
+                        )
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(imageVector = Icons.Outlined.LocationOn, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
@@ -403,6 +452,7 @@ private fun Long.monthKey(): String {
 }
 
 private fun TimelineUiState.emptyStateText(): String {
+    if (favoriteOnly) return "收藏夹里还没有记忆。去地图页收藏一段想反复回看的坐标。"
     if (searchQuery.isNotBlank() && selectedTagId != null) return "当前标签下没有匹配的记录"
     if (searchQuery.isNotBlank()) return "没有匹配的记录"
     if (selectedTagId != null) return "当前标签下暂无记录"
