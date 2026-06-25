@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -92,7 +93,12 @@ fun MapRoute(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    val records = uiState.locatedRecords
+    var selectedCity by remember(uiState.litCities) { mutableStateOf<String?>(null) }
+    val records = remember(uiState.locatedRecords, selectedCity) {
+        selectedCity?.let { city ->
+            uiState.locatedRecords.filter { it.mapCityKey() == city }
+        } ?: uiState.locatedRecords
+    }
     var selectedIndex by remember(records) { mutableIntStateOf(0) }
     var userSelected by remember(records) { mutableStateOf(false) }
 
@@ -141,6 +147,24 @@ fun MapRoute(
                 .padding(top = 104.dp, start = 18.dp, end = 18.dp)
         )
 
+        MapCityChips(
+            cities = uiState.litCities,
+            selectedCity = selectedCity,
+            onCityClick = { city ->
+                selectedCity = city
+                selectedIndex = 0
+                userSelected = true
+            },
+            onAllClick = {
+                selectedCity = null
+                selectedIndex = 0
+                userSelected = false
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 158.dp, start = 18.dp, end = 18.dp)
+        )
+
         MapLocateButton(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -165,6 +189,7 @@ fun MapRoute(
                 record = selectedRecord,
                 photo = uiState.firstPhotosByRecordId[selectedRecord.id],
                 litCityCount = uiState.litCities.size,
+                currentCity = selectedCity ?: selectedRecord.mapCityKey(),
                 isFavorite = selectedRecord.id in uiState.favoriteRecordIds,
                 onFavoriteClick = {
                     viewModel.setFavorite(
@@ -330,6 +355,58 @@ private fun MapPill(label: String, value: String, modifier: Modifier = Modifier)
 }
 
 @Composable
+private fun MapCityChips(
+    cities: List<String>,
+    selectedCity: String?,
+    onCityClick: (String) -> Unit,
+    onAllClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (cities.isEmpty()) return
+
+    LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            MapCityChip(
+                text = "全部",
+                selected = selectedCity == null,
+                onClick = onAllClick
+            )
+        }
+        items(cities.size) { index ->
+            val city = cities[index]
+            MapCityChip(
+                text = city,
+                selected = selectedCity == city,
+                onClick = { onCityClick(city) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MapCityChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) WildernessTeal else WildernessPaper.copy(alpha = 0.9f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Black,
+            color = if (selected) WildernessPaper else WildernessTeal,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
 private fun LightMarker(index: Int, title: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val color = markerColor(index)
     Column(modifier = modifier.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -411,6 +488,7 @@ private fun MapMemorySheet(
     record: MemoryRecord,
     photo: Photo?,
     litCityCount: Int,
+    currentCity: String,
     isFavorite: Boolean,
     onFavoriteClick: () -> Unit,
     onShareClick: () -> Unit,
@@ -449,7 +527,7 @@ private fun MapMemorySheet(
                     }
                     Text(text = record.dateText(), style = MaterialTheme.typography.bodyMedium, color = WildernessMuted)
                     Text(
-                        text = "已点亮 $litCityCount 座城市/地点",
+                        text = "$currentCity · 共点亮 $litCityCount 座城市/地点",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = WildernessTeal.copy(alpha = 0.72f)
@@ -549,6 +627,18 @@ private fun markerOffsetY(index: Int): Dp {
 
 private fun MemoryRecord.dateText(): String {
     return recordTime.formatDate().replace("-", ".")
+}
+
+private fun MemoryRecord.mapCityKey(): String {
+    val source = locationName?.trim().orEmpty()
+    if (source.isBlank()) return "未知坐标"
+    val cityMatch = Regex("""[\u4e00-\u9fa5A-Za-z0-9]+市""").find(source)?.value
+    if (!cityMatch.isNullOrBlank()) return cityMatch
+    return source
+        .split(" ", "·", "-", "|", "，", ",")
+        .firstOrNull { it.isNotBlank() }
+        ?.take(8)
+        ?: source.take(8)
 }
 
 private fun MemoryRecord.toShareText(): String {
