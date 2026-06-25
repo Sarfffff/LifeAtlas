@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Download
@@ -84,6 +85,7 @@ import java.time.format.DateTimeFormatter
 fun SettingsRoute(
     onAccountClick: () -> Unit,
     onTagManagementClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -162,6 +164,13 @@ fun SettingsRoute(
                 title = "记录偏好",
                 subtitle = "默认记录习惯、标签和照片说明",
                 onClick = { showPreferencePanel = true }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.Bookmark,
+                title = "收藏中心",
+                subtitle = "集中查看已收藏的记忆",
+                onClick = onFavoritesClick
             )
         }
 

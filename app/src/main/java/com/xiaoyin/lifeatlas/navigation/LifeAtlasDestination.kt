@@ -59,6 +59,10 @@ sealed class LifeAtlasDestination(
     data object TagManagement {
         const val route = "tag_management"
     }
+
+    data object Favorites {
+        const val route = "favorites"
+    }
 }
 
 val topLevelDestinations = listOf(

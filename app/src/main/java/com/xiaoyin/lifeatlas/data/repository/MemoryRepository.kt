@@ -17,6 +17,7 @@ import com.xiaoyin.lifeatlas.data.mapper.toEntity
 import com.xiaoyin.lifeatlas.data.mapper.toModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -63,6 +64,18 @@ class MemoryRepository(
 
     fun observeFavoriteRecordIds(): Flow<Set<Long>> {
         return favoriteRecordDao.observeFavoriteRecordIds().map { it.toSet() }
+    }
+
+    fun observeFavoriteRecords(): Flow<List<MemoryRecord>> {
+        return combine(
+            observeAllRecords(),
+            favoriteRecordDao.observeFavoriteRecordIds()
+        ) { records, favoriteIds ->
+            val favoriteOrder = favoriteIds.withIndex().associate { it.value to it.index }
+            records
+                .filter { it.id in favoriteOrder }
+                .sortedBy { favoriteOrder[it.id] ?: Int.MAX_VALUE }
+        }
     }
 
     fun observePhotoCount(): Flow<Int> {

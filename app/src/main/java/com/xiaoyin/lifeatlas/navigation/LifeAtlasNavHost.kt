@@ -39,6 +39,7 @@ import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.feature.auth.AuthRoute
+import com.xiaoyin.lifeatlas.feature.favorites.FavoriteCenterRoute
 import com.xiaoyin.lifeatlas.feature.home.HomeRoute
 import com.xiaoyin.lifeatlas.feature.map.MapRoute
 import com.xiaoyin.lifeatlas.feature.map.MapPickerRoute
@@ -181,6 +182,9 @@ fun LifeAtlasNavHost() {
                     },
                     onTagManagementClick = {
                         navController.navigate(LifeAtlasDestination.TagManagement.route)
+                    },
+                    onFavoritesClick = {
+                        navController.navigate(LifeAtlasDestination.Favorites.route)
                     }
                 )
             }
@@ -226,6 +230,14 @@ fun LifeAtlasNavHost() {
             }
             composable(LifeAtlasDestination.TagManagement.route) {
                 TagManagementRoute(onBack = { navController.popBackStack() })
+            }
+            composable(LifeAtlasDestination.Favorites.route) {
+                FavoriteCenterRoute(
+                    onBack = { navController.popBackStack() },
+                    onRecordClick = { recordId ->
+                        navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
+                    }
+                )
             }
             composable(
                 route = LifeAtlasDestination.RecordDetail.route,
