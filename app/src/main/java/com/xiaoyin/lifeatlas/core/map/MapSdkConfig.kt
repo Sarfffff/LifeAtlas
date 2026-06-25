@@ -22,5 +22,5 @@ object MapSdkConfig {
 }
 
 enum class MapProvider(val displayName: String) {
-    Amap("高德地图"),
+    Amap("高德地图")
 }

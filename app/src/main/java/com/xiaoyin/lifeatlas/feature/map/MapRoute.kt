@@ -23,13 +23,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -64,6 +62,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.xiaoyin.lifeatlas.R
+import com.xiaoyin.lifeatlas.core.map.AmapMapView
+import com.xiaoyin.lifeatlas.core.map.MapMarkerItem
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
@@ -109,6 +109,12 @@ fun MapRoute(
             onMarkerClick = { index ->
                 selectedIndex = index
                 userSelected = true
+            },
+            onRealMarkerClick = { recordId ->
+                records.indexOfFirst { it.id == recordId }.takeIf { it >= 0 }?.let { index ->
+                    selectedIndex = index
+                    userSelected = true
+                }
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -156,6 +162,7 @@ private fun LifeMapCanvas(
     records: List<MemoryRecord>,
     selectedIndex: Int,
     onMarkerClick: (Int) -> Unit,
+    onRealMarkerClick: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
@@ -175,47 +182,65 @@ private fun LifeMapCanvas(
     }
 
     Box(modifier = modifier.clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = animatedScale.value
-                    scaleY = animatedScale.value
-                    translationX = offset.x
-                    translationY = offset.y
-                }
-                .transformable(transformableState)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.wilderness_map_panel),
-                contentDescription = "人生地图",
-                contentScale = ContentScale.Crop,
+        if (MapSdkConfig.isAmapConfigured) {
+            AmapMapView(
+                markers = records.map { record ->
+                    MapMarkerItem(
+                        id = record.id,
+                        latitude = requireNotNull(record.latitude),
+                        longitude = requireNotNull(record.longitude),
+                        title = record.title,
+                        snippet = record.locationName ?: "已点亮坐标"
+                    )
+                },
+                onMarkerClick = onRealMarkerClick,
                 modifier = Modifier.fillMaxSize()
             )
-            records.take(6).forEachIndexed { index, record ->
-                LightMarker(
-                    index = index,
-                    title = record.locationName ?: record.title,
-                    selected = index == selectedIndex,
-                    onClick = { onMarkerClick(index) },
-                    modifier = Modifier
-                        .align(markerAlignment(index))
-                        .offset(x = markerOffsetX(index), y = markerOffsetY(index))
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = animatedScale.value
+                        scaleY = animatedScale.value
+                        translationX = offset.x
+                        translationY = offset.y
+                    }
+                    .transformable(transformableState)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.wilderness_map_panel),
+                    contentDescription = "人生地图",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
+                records.take(6).forEachIndexed { index, record ->
+                    LightMarker(
+                        index = index,
+                        title = record.locationName ?: record.title,
+                        selected = index == selectedIndex,
+                        onClick = { onMarkerClick(index) },
+                        modifier = Modifier
+                            .align(markerAlignment(index))
+                            .offset(x = markerOffsetX(index), y = markerOffsetY(index))
+                    )
+                }
             }
         }
 
-        MapZoomControls(
-            scale = scale,
-            onZoomIn = { scale = (scale + 0.24f).coerceAtMost(2.6f) },
-            onZoomOut = {
-                scale = (scale - 0.24f).coerceAtLeast(1f)
-                if (scale == 1f) offset = Offset.Zero
-            },
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 18.dp, top = 70.dp)
-        )
+        if (!MapSdkConfig.isAmapConfigured) {
+            MapZoomControls(
+                scale = scale,
+                onZoomIn = { scale = (scale + 0.24f).coerceAtMost(2.6f) },
+                onZoomOut = {
+                    scale = (scale - 0.24f).coerceAtLeast(1f)
+                    if (scale == 1f) offset = Offset.Zero
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 18.dp, top = 70.dp)
+            )
+        }
     }
 }
 
@@ -229,12 +254,7 @@ private fun MapTopBar(modifier: Modifier = Modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = "‹", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Light, color = WildernessTeal)
             Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "人生地图",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Black,
-                color = WildernessTeal
-            )
+            Text(text = "人生地图", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             IconButton(onClick = {}) {
@@ -251,7 +271,7 @@ private fun MapTopBar(modifier: Modifier = Modifier) {
 private fun MapStatusPills(count: Int, modifier: Modifier = Modifier) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         MapPill(label = "坐标", value = "$count", modifier = Modifier.weight(0.9f))
-        MapPill(label = "地图", value = "人生地图", modifier = Modifier.weight(1.2f))
+        MapPill(label = "地图", value = if (MapSdkConfig.isAmapConfigured) "城市地图" else "人生地图", modifier = Modifier.weight(1.2f))
         MapPill(label = "Key", value = MapSdkConfig.statusText, modifier = Modifier.weight(1f))
     }
 }
@@ -269,23 +289,14 @@ private fun MapPill(label: String, value: String, modifier: Modifier = Modifier)
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium, color = WildernessTeal.copy(alpha = 0.65f))
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text = value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = WildernessTeal)
+        Text(text = value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1)
     }
 }
 
 @Composable
-private fun LightMarker(
-    index: Int,
-    title: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun LightMarker(index: Int, title: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val color = markerColor(index)
-    Column(
-        modifier = modifier.clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(modifier = modifier.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
                 .size(if (selected) 78.dp else 64.dp)
@@ -295,12 +306,7 @@ private fun LightMarker(
                 .border(if (selected) 5.dp else 4.dp, color, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Outlined.LocationOn,
-                contentDescription = title,
-                tint = color,
-                modifier = Modifier.size(if (selected) 48.dp else 40.dp)
-            )
+            Icon(Icons.Outlined.LocationOn, contentDescription = title, tint = color, modifier = Modifier.size(if (selected) 48.dp else 40.dp))
         }
         if (selected) {
             Text(
@@ -319,12 +325,7 @@ private fun LightMarker(
 }
 
 @Composable
-private fun MapZoomControls(
-    scale: Float,
-    onZoomIn: () -> Unit,
-    onZoomOut: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun MapZoomControls(scale: Float, onZoomIn: () -> Unit, onZoomOut: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
@@ -332,30 +333,9 @@ private fun MapZoomControls(
             .border(1.dp, WildernessTeal.copy(alpha = 0.16f), RoundedCornerShape(8.dp)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "+",
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Black,
-            color = WildernessTeal,
-            modifier = Modifier
-                .clickable(onClick = onZoomIn)
-                .padding(horizontal = 18.dp, vertical = 4.dp)
-        )
-        Box(
-            modifier = Modifier
-                .width(42.dp)
-                .height(1.dp)
-                .background(WildernessTeal.copy(alpha = 0.16f))
-        )
-        Text(
-            text = "-",
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Black,
-            color = if (scale > 1f) WildernessTeal else WildernessMuted,
-            modifier = Modifier
-                .clickable(onClick = onZoomOut)
-                .padding(horizontal = 20.dp, vertical = 4.dp)
-        )
+        Text("+", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = WildernessTeal, modifier = Modifier.clickable(onClick = onZoomIn).padding(horizontal = 18.dp, vertical = 4.dp))
+        Box(modifier = Modifier.width(42.dp).height(1.dp).background(WildernessTeal.copy(alpha = 0.16f)))
+        Text("-", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = if (scale > 1f) WildernessTeal else WildernessMuted, modifier = Modifier.clickable(onClick = onZoomOut).padding(horizontal = 20.dp, vertical = 4.dp))
     }
 }
 
@@ -374,12 +354,7 @@ private fun MapLocateButton(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MapMemorySheet(
-    record: MemoryRecord,
-    photo: Photo?,
-    onDetailClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun MapMemorySheet(record: MemoryRecord, photo: Photo?, onDetailClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 24.dp, bottomEnd = 24.dp),
@@ -402,23 +377,10 @@ private fun MapMemorySheet(
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Row(verticalAlignment = Alignment.Top) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = record.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Black,
-                                color = WildernessTeal,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Text(record.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = WildernessMuted, modifier = Modifier.size(16.dp))
-                                Text(
-                                    text = record.locationName ?: "已点亮坐标",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = WildernessMuted,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Text(record.locationName ?: "已点亮坐标", style = MaterialTheme.typography.bodyMedium, color = WildernessMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.75f))
@@ -435,34 +397,15 @@ private fun MapMemorySheet(
                 }
             }
             Spacer(modifier = Modifier.height(18.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(
-                    onClick = {},
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)
-                ) {
-                    Icon(Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("收藏", fontWeight = FontWeight.Black)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = {}, modifier = Modifier.weight(1.05f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+                    Text("收藏", fontWeight = FontWeight.Black, maxLines = 1)
                 }
-                OutlinedButton(
-                    onClick = {},
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)
-                ) {
-                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("分享", fontWeight = FontWeight.Black)
+                OutlinedButton(onClick = {}, modifier = Modifier.weight(1.05f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+                    Text("分享", fontWeight = FontWeight.Black, maxLines = 1)
                 }
-                Button(
-                    onClick = onDetailClick,
-                    modifier = Modifier.weight(1.35f).height(48.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)
-                ) {
-                    Text("查看详情", fontWeight = FontWeight.Black)
+                Button(onClick = onDetailClick, modifier = Modifier.weight(1.55f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)) {
+                    Text("查看详情", fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
         }
@@ -477,18 +420,14 @@ private fun MapRecordPhoto(photo: Photo?) {
             painter = painterResource(id = R.drawable.wilderness_home_hero),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(width = 104.dp, height = 104.dp)
-                .clip(RoundedCornerShape(18.dp))
+            modifier = Modifier.size(width = 104.dp, height = 104.dp).clip(RoundedCornerShape(18.dp))
         )
     } else {
         AsyncImage(
             model = model,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(width = 104.dp, height = 104.dp)
-                .clip(RoundedCornerShape(18.dp))
+            modifier = Modifier.size(width = 104.dp, height = 104.dp).clip(RoundedCornerShape(18.dp))
         )
     }
 }
@@ -496,10 +435,7 @@ private fun MapRecordPhoto(photo: Photo?) {
 @Composable
 private fun MoodChip(mood: String) {
     Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(WildernessWildflower.copy(alpha = 0.24f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(WildernessWildflower.copy(alpha = 0.24f)).padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = "☺", color = WildernessTeal, style = MaterialTheme.typography.labelMedium)
@@ -518,11 +454,7 @@ private fun EmptyMapMemoryCard(modifier: Modifier = Modifier) {
     ) {
         Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("还没有点亮坐标", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
-            Text(
-                "新增或编辑记录时填写地点，地图就会出现属于你的第一枚标记。",
-                style = MaterialTheme.typography.bodyLarge,
-                color = WildernessTeal.copy(alpha = 0.7f)
-            )
+            Text("新增或编辑记录时填写地点，地图就会出现属于你的第一枚标记。", style = MaterialTheme.typography.bodyLarge, color = WildernessTeal.copy(alpha = 0.7f))
         }
     }
 }
@@ -532,14 +464,7 @@ private fun markerColor(index: Int): Color {
 }
 
 private fun markerAlignment(index: Int): Alignment {
-    return listOf(
-        Alignment.TopCenter,
-        Alignment.CenterEnd,
-        Alignment.CenterStart,
-        Alignment.BottomCenter,
-        Alignment.Center,
-        Alignment.TopStart
-    )[index % 6]
+    return listOf(Alignment.TopCenter, Alignment.CenterEnd, Alignment.CenterStart, Alignment.BottomCenter, Alignment.Center, Alignment.TopStart)[index % 6]
 }
 
 private fun markerOffsetX(index: Int): Dp {

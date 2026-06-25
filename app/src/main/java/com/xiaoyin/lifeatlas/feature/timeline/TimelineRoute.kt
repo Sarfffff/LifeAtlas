@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -41,6 +42,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -69,8 +72,7 @@ fun TimelineRoute(
     viewModel: TimelineViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val records = uiState.records
-    val groups = records.groupBy { it.recordTime.monthKey() }
+    val groups = uiState.records.groupBy { it.recordTime.monthKey() }
         .map { (key, monthRecords) ->
             val parts = key.split("-")
             TimelineMonthGroup(
@@ -88,16 +90,21 @@ fun TimelineRoute(
             .padding(horizontal = 18.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        TimelineHeader()
+        TimelineHeader(onFilterClick = viewModel::toggleCategoryFilters)
         TimelineSearchBar(
             query = uiState.searchQuery,
             onQueryChange = viewModel::onSearchQueryChange,
             onClear = viewModel::clearSearchQuery
         )
-        TimelineCategoryChips()
-        TimelineSearchResultHint(query = uiState.searchQuery, resultCount = records.size)
+        if (uiState.showCategoryFilters) {
+            TimelineCategoryChips(
+                selectedCategory = uiState.selectedCategory,
+                onCategoryClick = viewModel::selectCategory
+            )
+        }
+        TimelineSearchResultHint(uiState = uiState)
 
-        if (records.isEmpty()) {
+        if (uiState.records.isEmpty()) {
             EmptyTrail(text = uiState.emptyStateText())
         } else {
             groups.forEachIndexed { index, group ->
@@ -113,7 +120,7 @@ fun TimelineRoute(
 }
 
 @Composable
-private fun TimelineHeader() {
+private fun TimelineHeader(onFilterClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -125,12 +132,14 @@ private fun TimelineHeader() {
             fontWeight = FontWeight.Black,
             color = WildernessTeal
         )
-        Icon(
-            imageVector = Icons.Outlined.Tune,
-            contentDescription = "筛选",
-            tint = WildernessTeal,
-            modifier = Modifier.size(30.dp)
-        )
+        IconButton(onClick = onFilterClick) {
+            Icon(
+                imageVector = Icons.Outlined.Tune,
+                contentDescription = "筛选",
+                tint = WildernessTeal,
+                modifier = Modifier.size(30.dp)
+            )
+        }
     }
 }
 
@@ -167,7 +176,10 @@ private fun TimelineSearchBar(
 }
 
 @Composable
-private fun TimelineCategoryChips() {
+private fun TimelineCategoryChips(
+    selectedCategory: String,
+    onCategoryClick: (String) -> Unit
+) {
     val chips = listOf(
         "全部" to WildernessMeadow,
         "旅行" to WildernessSky.copy(alpha = 0.72f),
@@ -178,10 +190,12 @@ private fun TimelineCategoryChips() {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         items(chips.size) { index ->
             val (label, color) = chips[index]
+            val selected = label == selectedCategory
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(18.dp))
-                    .background(color)
+                    .background(if (selected) WildernessTeal else color)
+                    .clickable { onCategoryClick(label) }
                     .padding(horizontal = 16.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -189,7 +203,7 @@ private fun TimelineCategoryChips() {
                     text = label,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Black,
-                    color = WildernessTeal
+                    color = if (selected) WildernessPaper else WildernessTeal
                 )
             }
         }
@@ -197,11 +211,11 @@ private fun TimelineCategoryChips() {
 }
 
 @Composable
-private fun TimelineSearchResultHint(query: String, resultCount: Int) {
-    if (query.isBlank()) return
+private fun TimelineSearchResultHint(uiState: TimelineUiState) {
+    if (uiState.searchQuery.isBlank() && uiState.selectedCategory == "全部") return
 
     Text(
-        text = "找到 $resultCount 条匹配记录",
+        text = "找到 ${uiState.records.size} 条匹配记录",
         style = MaterialTheme.typography.bodySmall,
         color = WildernessTeal.copy(alpha = 0.62f)
     )
@@ -224,10 +238,7 @@ private fun TimelineMonthSection(
             isLast = isLast,
             height = (group.records.size * 172).coerceAtLeast(172).dp
         )
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             group.records.forEach { record ->
                 TimelineRecordCard(
                     record = record,
@@ -240,11 +251,8 @@ private fun TimelineMonthSection(
 }
 
 @Composable
-private fun MonthRail(month: String, year: String, isLast: Boolean, height: androidx.compose.ui.unit.Dp) {
-    Row(
-        modifier = Modifier.width(64.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+private fun MonthRail(month: String, year: String, isLast: Boolean, height: Dp) {
+    Row(modifier = Modifier.width(64.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = "${month}月", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
             Text(text = year, style = MaterialTheme.typography.bodySmall, color = WildernessTeal.copy(alpha = 0.58f))
@@ -285,10 +293,7 @@ private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, onClick: () 
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TimelinePhoto(photo = photo)
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -299,6 +304,8 @@ private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, onClick: () 
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
                         color = WildernessTeal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     Icon(imageVector = Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.54f), modifier = Modifier.size(20.dp))
@@ -308,13 +315,17 @@ private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, onClick: () 
                     Text(
                         text = record.locationName ?: "未填写地点",
                         style = MaterialTheme.typography.bodySmall,
-                        color = WildernessTeal.copy(alpha = 0.66f)
+                        color = WildernessTeal.copy(alpha = 0.66f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Text(
                     text = record.content.toTimelineSummary(),
                     style = MaterialTheme.typography.bodySmall,
-                    color = WildernessTeal.copy(alpha = 0.68f)
+                    color = WildernessTeal.copy(alpha = 0.68f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 MoodChip(record.mood ?: "平静")
             }
@@ -371,14 +382,8 @@ private fun MoodChip(text: String) {
 
 @Composable
 private fun EmptyTrail(text: String) {
-    Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = WildernessPaper)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "这里还很安静", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
             Text(text = text, style = MaterialTheme.typography.bodyLarge, color = WildernessTeal.copy(alpha = 0.7f))
         }
@@ -401,5 +406,6 @@ private fun TimelineUiState.emptyStateText(): String {
     if (searchQuery.isNotBlank() && selectedTagId != null) return "当前标签下没有匹配的记录"
     if (searchQuery.isNotBlank()) return "没有匹配的记录"
     if (selectedTagId != null) return "当前标签下暂无记录"
+    if (selectedCategory != "全部") return "当前分类下暂无记录"
     return "还没有走到这里"
 }

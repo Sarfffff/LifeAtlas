@@ -4,13 +4,15 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
+import com.xiaoyin.lifeatlas.core.datastore.UserProfileSettings
+import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
 import com.xiaoyin.lifeatlas.data.export.LifeAtlasImportPreview
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -20,6 +22,7 @@ import java.util.zip.ZipException
 
 data class SettingsUiState(
     val localFirstEnabled: Boolean = true,
+    val profile: UserProfileSettings = UserProfileSettings(),
     val isExporting: Boolean = false,
     val isExportingBackup: Boolean = false,
     val isImporting: Boolean = false,
@@ -52,8 +55,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         viewModelScope.launch {
-            settingsRepository.localFirstEnabled.collect { enabled ->
-                _uiState.update { it.copy(localFirstEnabled = enabled) }
+            combine(
+                settingsRepository.localFirstEnabled,
+                settingsRepository.userProfile
+            ) { localFirstEnabled, profile ->
+                localFirstEnabled to profile
+            }.collect { (enabled, profile) ->
+                _uiState.update { it.copy(localFirstEnabled = enabled, profile = profile) }
             }
         }
     }
@@ -64,24 +72,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun updateProfile(displayName: String, signature: String, avatarUri: String?) {
+        viewModelScope.launch {
+            settingsRepository.updateProfile(displayName, signature, avatarUri)
+            _uiState.update { it.copy(message = SettingsMessage("资料已更新", SettingsMessageType.Success)) }
+        }
+    }
+
     fun prepareExport() {
         viewModelScope.launch {
             _uiState.update { it.copy(isExporting = true, message = null) }
             runCatching {
                 withContext(Dispatchers.IO) { exportService.exportJson() }
             }.onSuccess { json ->
-                _uiState.update {
-                    it.copy(
-                        isExporting = false,
-                        pendingExportJson = json
-                    )
-                }
+                _uiState.update { it.copy(isExporting = false, pendingExportJson = json) }
             }.onFailure { error ->
                 _uiState.update {
-                    it.copy(
-                        isExporting = false,
-                        message = error.toSettingsMessage("准备 JSON 导出失败")
-                    )
+                    it.copy(isExporting = false, message = error.toSettingsMessage("准备 JSON 导出失败"))
                 }
             }
         }
@@ -89,7 +96,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun writeExport(uri: Uri) {
         val json = _uiState.value.pendingExportJson ?: return
-
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -101,7 +107,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         pendingExportJson = null,
-                        message = SettingsMessage("导出完成", SettingsMessageType.Success)
+                        message = SettingsMessage("JSON 数据导出完成", SettingsMessageType.Success)
                     )
                 }
             }.onFailure { error ->
@@ -144,10 +150,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
             }.onFailure { error ->
                 _uiState.update {
-                    it.copy(
-                        isExportingBackup = false,
-                        message = error.toSettingsMessage("备份包导出失败")
-                    )
+                    it.copy(isExportingBackup = false, message = error.toSettingsMessage("备份包导出失败"))
                 }
             }
         }
@@ -163,6 +166,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 it.copy(
                     isPreparingImport = true,
                     pendingImportJson = null,
+                    pendingBackupZipUri = null,
                     importPreview = null,
                     message = null
                 )
@@ -197,10 +201,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
             }.onFailure { error ->
                 _uiState.update {
-                    it.copy(
-                        isPreparingImport = false,
-                        message = error.toSettingsMessage("无法预览导入文件")
-                    )
+                    it.copy(isPreparingImport = false, message = error.toSettingsMessage("无法预览导入文件"))
                 }
             }
         }
@@ -238,17 +239,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     }
                 }.onFailure { error ->
                     _uiState.update {
-                        it.copy(
-                            isImporting = false,
-                            message = error.toSettingsMessage("备份包导入失败")
-                        )
+                        it.copy(isImporting = false, message = error.toSettingsMessage("备份包导入失败"))
                     }
                 }
             }
             return
         }
-        val jsonText = state.pendingImportJson ?: return
 
+        val jsonText = state.pendingImportJson ?: return
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -260,9 +258,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 )
             }
             runCatching {
-                withContext(Dispatchers.IO) {
-                    exportService.importJson(jsonText)
-                }
+                withContext(Dispatchers.IO) { exportService.importJson(jsonText) }
             }.onSuccess { result ->
                 _uiState.update {
                     it.copy(
@@ -274,12 +270,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     )
                 }
             }.onFailure { error ->
-                _uiState.update {
-                    it.copy(
-                        isImporting = false,
-                        message = error.toSettingsMessage("导入失败")
-                    )
-                }
+                _uiState.update { it.copy(isImporting = false, message = error.toSettingsMessage("导入失败")) }
             }
         }
     }
@@ -310,11 +301,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun Uri.detectBackupInputKind(): BackupInputKind {
         val mimeType = getApplication<Application>().contentResolver.getType(this).orEmpty().lowercase()
         val name = lastPathSegment.orEmpty().lowercase()
-        return if (mimeType.contains("zip") || name.endsWith(".zip")) {
-            BackupInputKind.Zip
-        } else {
-            BackupInputKind.Json
-        }
+        return if (mimeType.contains("zip") || name.endsWith(".zip")) BackupInputKind.Zip else BackupInputKind.Json
     }
 }
 
