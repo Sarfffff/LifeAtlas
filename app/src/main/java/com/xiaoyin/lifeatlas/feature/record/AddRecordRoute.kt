@@ -187,6 +187,11 @@ fun AddRecordRoute(
         ) {
             Text("选择照片（${uiState.photoUris.size}）")
         }
+        Text(
+            text = "照片策略：${uiState.photoSaveStrategy}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+        )
         if (uiState.photoUris.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 uiState.photoUris.forEach { uri ->

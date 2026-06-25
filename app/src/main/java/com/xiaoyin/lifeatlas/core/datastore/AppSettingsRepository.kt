@@ -16,6 +16,12 @@ data class UserProfileSettings(
     val avatarUri: String? = null
 )
 
+data class RecordPreferenceSettings(
+    val defaultMood: String = "平静",
+    val defaultTags: String = "",
+    val photoSaveStrategy: String = "缓存缩略图，保留原图引用"
+)
+
 class AppSettingsRepository(context: Context) {
     private val dataStore = context.applicationContext.settingsDataStore
 
@@ -33,6 +39,14 @@ class AppSettingsRepository(context: Context) {
 
     val onboardingCompleted: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[ONBOARDING_COMPLETED] ?: false
+    }
+
+    val recordPreferences: Flow<RecordPreferenceSettings> = dataStore.data.map { preferences ->
+        RecordPreferenceSettings(
+            defaultMood = preferences[DEFAULT_MOOD] ?: "平静",
+            defaultTags = preferences[DEFAULT_TAGS] ?: "",
+            photoSaveStrategy = preferences[PHOTO_SAVE_STRATEGY] ?: "缓存缩略图，保留原图引用"
+        )
     }
 
     suspend fun setLocalFirstEnabled(enabled: Boolean) {
@@ -59,11 +73,22 @@ class AppSettingsRepository(context: Context) {
         }
     }
 
+    suspend fun updateRecordPreferences(defaultMood: String, defaultTags: String, photoSaveStrategy: String) {
+        dataStore.edit { preferences ->
+            preferences[DEFAULT_MOOD] = defaultMood.trim().ifBlank { "平静" }
+            preferences[DEFAULT_TAGS] = defaultTags.trim()
+            preferences[PHOTO_SAVE_STRATEGY] = photoSaveStrategy.trim().ifBlank { "缓存缩略图，保留原图引用" }
+        }
+    }
+
     private companion object {
         val LOCAL_FIRST_ENABLED = booleanPreferencesKey("local_first_enabled")
         val PROFILE_DISPLAY_NAME = stringPreferencesKey("profile_display_name")
         val PROFILE_SIGNATURE = stringPreferencesKey("profile_signature")
         val PROFILE_AVATAR_URI = stringPreferencesKey("profile_avatar_uri")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val DEFAULT_MOOD = stringPreferencesKey("default_mood")
+        val DEFAULT_TAGS = stringPreferencesKey("default_tags")
+        val PHOTO_SAVE_STRATEGY = stringPreferencesKey("photo_save_strategy")
     }
 }

@@ -3,6 +3,7 @@ package com.xiaoyin.lifeatlas.feature.record
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.data.repository.RepositoryProvider
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,7 @@ data class AddRecordUiState(
     val mood: String = "",
     val importance: Float = 3f,
     val tagsText: String = "",
+    val photoSaveStrategy: String = "缓存缩略图，保留原图引用",
     val photoUris: List<String> = emptyList(),
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
@@ -32,9 +34,24 @@ data class AddRecordUiState(
 
 class AddRecordViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = RepositoryProvider.memoryRepository(application)
+    private val settingsRepository = AppSettingsRepository(application)
 
     private val _uiState = MutableStateFlow(AddRecordUiState())
     val uiState: StateFlow<AddRecordUiState> = _uiState
+
+    init {
+        viewModelScope.launch {
+            settingsRepository.recordPreferences.collect { preferences ->
+                _uiState.update { current ->
+                    current.copy(
+                        mood = current.mood.ifBlank { preferences.defaultMood },
+                        tagsText = current.tagsText.ifBlank { preferences.defaultTags },
+                        photoSaveStrategy = preferences.photoSaveStrategy
+                    )
+                }
+            }
+        }
+    }
 
     fun onTitleChange(value: String) {
         _uiState.update { it.copy(title = value, errorMessage = null, infoMessage = null) }

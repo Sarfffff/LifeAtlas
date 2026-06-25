@@ -66,6 +66,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.xiaoyin.lifeatlas.BuildConfig
 import com.xiaoyin.lifeatlas.R
+import com.xiaoyin.lifeatlas.core.datastore.RecordPreferenceSettings
 import com.xiaoyin.lifeatlas.core.datastore.UserProfileSettings
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessCream
@@ -276,7 +277,9 @@ fun SettingsRoute(
     if (showPreferencePanel) {
         RecordPreferenceDialog(
             localFirstEnabled = uiState.localFirstEnabled,
+            preferences = uiState.recordPreferences,
             onLocalFirstChange = viewModel::onLocalFirstChange,
+            onSavePreferences = viewModel::updateRecordPreferences,
             onManageTags = {
                 showPreferencePanel = false
                 onTagManagementClick()
@@ -507,16 +510,22 @@ private fun DataSyncDialog(
 @Composable
 private fun RecordPreferenceDialog(
     localFirstEnabled: Boolean,
+    preferences: RecordPreferenceSettings,
     onLocalFirstChange: (Boolean) -> Unit,
+    onSavePreferences: (String, String, String) -> Unit,
     onManageTags: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var defaultMood by remember(preferences) { mutableStateOf(preferences.defaultMood) }
+    var defaultTags by remember(preferences) { mutableStateOf(preferences.defaultTags) }
+    var photoSaveStrategy by remember(preferences) { mutableStateOf(preferences.photoSaveStrategy) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("记录偏好") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("这里集中管理写记录时常用的习惯设置。当前先提供本地优先开关、标签管理入口和照片存储说明。")
+                Text("这里集中管理写记录时常用的习惯设置。保存后，新增记录会自动带入默认心情和默认标签。")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -528,7 +537,27 @@ private fun RecordPreferenceDialog(
                     }
                     Switch(checked = localFirstEnabled, onCheckedChange = onLocalFirstChange)
                 }
-                Text("照片策略：当前优先缓存到 App 私有目录，备份包会尽量携带可读取的照片缓存。")
+                OutlinedTextField(
+                    value = defaultMood,
+                    onValueChange = { defaultMood = it },
+                    label = { Text("默认心情") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = defaultTags,
+                    onValueChange = { defaultTags = it },
+                    label = { Text("默认标签") },
+                    placeholder = { Text("用逗号分隔，例如：日常，家人") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = photoSaveStrategy,
+                    onValueChange = { photoSaveStrategy = it },
+                    label = { Text("照片保存策略") },
+                    placeholder = { Text("缓存缩略图，保留原图引用") },
+                    minLines = 2
+                )
+                Text("当前照片策略会作为说明保存；实际照片仍优先生成缩略图并缓存到 App 私有目录。")
                 OutlinedButton(onClick = onManageTags, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Outlined.EditNote, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
@@ -537,8 +566,18 @@ private fun RecordPreferenceDialog(
             }
         },
         confirmButton = {
+            TextButton(
+                onClick = {
+                    onSavePreferences(defaultMood, defaultTags, photoSaveStrategy)
+                    onDismiss()
+                }
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("完成")
+                Text("取消")
             }
         }
     )

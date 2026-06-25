@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
+import com.xiaoyin.lifeatlas.core.datastore.RecordPreferenceSettings
 import com.xiaoyin.lifeatlas.core.datastore.UserProfileSettings
 import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
@@ -23,6 +24,7 @@ import java.util.zip.ZipException
 data class SettingsUiState(
     val localFirstEnabled: Boolean = true,
     val profile: UserProfileSettings = UserProfileSettings(),
+    val recordPreferences: RecordPreferenceSettings = RecordPreferenceSettings(),
     val isExporting: Boolean = false,
     val isExportingBackup: Boolean = false,
     val isImporting: Boolean = false,
@@ -57,11 +59,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             combine(
                 settingsRepository.localFirstEnabled,
-                settingsRepository.userProfile
-            ) { localFirstEnabled, profile ->
-                localFirstEnabled to profile
-            }.collect { (enabled, profile) ->
-                _uiState.update { it.copy(localFirstEnabled = enabled, profile = profile) }
+                settingsRepository.userProfile,
+                settingsRepository.recordPreferences
+            ) { localFirstEnabled, profile, recordPreferences ->
+                Triple(localFirstEnabled, profile, recordPreferences)
+            }.collect { (enabled, profile, recordPreferences) ->
+                _uiState.update {
+                    it.copy(
+                        localFirstEnabled = enabled,
+                        profile = profile,
+                        recordPreferences = recordPreferences
+                    )
+                }
             }
         }
     }
@@ -82,6 +91,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun showOnboardingAgain() {
         viewModelScope.launch {
             settingsRepository.setOnboardingCompleted(false)
+        }
+    }
+
+    fun updateRecordPreferences(defaultMood: String, defaultTags: String, photoSaveStrategy: String) {
+        viewModelScope.launch {
+            settingsRepository.updateRecordPreferences(defaultMood, defaultTags, photoSaveStrategy)
+            _uiState.update { it.copy(message = SettingsMessage("记录偏好已保存", SettingsMessageType.Success)) }
         }
     }
 
