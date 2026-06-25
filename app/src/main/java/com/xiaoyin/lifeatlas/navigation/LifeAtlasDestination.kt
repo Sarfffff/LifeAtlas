@@ -23,6 +23,10 @@ sealed class LifeAtlasDestination(
         const val route = "auth"
     }
 
+    data object Onboarding {
+        const val route = "onboarding"
+    }
+
     data object RecordDetail {
         const val route = "record_detail/{recordId}"
         const val recordIdArg = "recordId"

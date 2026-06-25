@@ -188,6 +188,13 @@ fun SettingsRoute(
         SettingsSection(title = "关于") {
             SettingsRow(
                 icon = Icons.Outlined.Info,
+                title = "使用引导",
+                subtitle = "重新查看记录、地图和备份说明",
+                onClick = viewModel::showOnboardingAgain
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.Info,
                 title = "关于岁迹",
                 subtitle = "版本 ${BuildConfig.VERSION_NAME}",
                 trailingText = "版本 ${BuildConfig.VERSION_NAME}",

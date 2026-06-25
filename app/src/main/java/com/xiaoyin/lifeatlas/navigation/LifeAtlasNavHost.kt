@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +34,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.xiaoyin.lifeatlas.core.auth.AuthRepository
+import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
@@ -40,26 +42,39 @@ import com.xiaoyin.lifeatlas.feature.auth.AuthRoute
 import com.xiaoyin.lifeatlas.feature.home.HomeRoute
 import com.xiaoyin.lifeatlas.feature.map.MapRoute
 import com.xiaoyin.lifeatlas.feature.map.MapPickerRoute
+import com.xiaoyin.lifeatlas.feature.onboarding.OnboardingRoute
 import com.xiaoyin.lifeatlas.feature.record.AddRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.EditRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.RecordDetailRoute
 import com.xiaoyin.lifeatlas.feature.settings.SettingsRoute
 import com.xiaoyin.lifeatlas.feature.settings.TagManagementRoute
 import com.xiaoyin.lifeatlas.feature.timeline.TimelineRoute
+import kotlinx.coroutines.launch
 
 @Composable
 fun LifeAtlasNavHost() {
     val context = LocalContext.current
     val authRepository = androidx.compose.runtime.remember { AuthRepository(context) }
+    val settingsRepository = androidx.compose.runtime.remember { AppSettingsRepository(context) }
     val authSession by authRepository.session.collectAsState(initial = com.xiaoyin.lifeatlas.core.auth.AuthSession())
+    val onboardingCompleted by settingsRepository.onboardingCompleted.collectAsState(initial = true)
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: LifeAtlasDestination.Home.route
-    val showBottomBar = currentRoute != LifeAtlasDestination.Auth.route
+    val showBottomBar = currentRoute != LifeAtlasDestination.Auth.route &&
+        currentRoute != LifeAtlasDestination.Onboarding.route
 
-    LaunchedEffect(authSession.isLoggedIn, authSession.skippedLogin) {
+    LaunchedEffect(authSession.isLoggedIn, authSession.skippedLogin, onboardingCompleted) {
         if (!authSession.isLoggedIn && !authSession.skippedLogin) {
             navController.navigate(LifeAtlasDestination.Auth.route) {
+                popUpTo(navController.graph.startDestinationId) {
+                    inclusive = false
+                }
+                launchSingleTop = true
+            }
+        } else if (!onboardingCompleted) {
+            navController.navigate(LifeAtlasDestination.Onboarding.route) {
                 popUpTo(navController.graph.startDestinationId) {
                     inclusive = false
                 }
@@ -175,6 +190,32 @@ fun LifeAtlasNavHost() {
                         if (!navController.popBackStack()) {
                             navController.navigate(LifeAtlasDestination.Home.route) {
                                 popUpTo(LifeAtlasDestination.Auth.route) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                )
+            }
+            composable(LifeAtlasDestination.Onboarding.route) {
+                OnboardingRoute(
+                    onFinish = {
+                        scope.launch {
+                            settingsRepository.setOnboardingCompleted(true)
+                            navController.navigate(LifeAtlasDestination.Home.route) {
+                                popUpTo(LifeAtlasDestination.Onboarding.route) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    onSkip = {
+                        scope.launch {
+                            settingsRepository.setOnboardingCompleted(true)
+                            navController.navigate(LifeAtlasDestination.Home.route) {
+                                popUpTo(LifeAtlasDestination.Onboarding.route) {
                                     inclusive = true
                                 }
                                 launchSingleTop = true

@@ -79,6 +79,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun showOnboardingAgain() {
+        viewModelScope.launch {
+            settingsRepository.setOnboardingCompleted(false)
+        }
+    }
+
     fun prepareExport() {
         viewModelScope.launch {
             _uiState.update { it.copy(isExporting = true, message = null) }

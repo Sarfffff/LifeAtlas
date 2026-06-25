@@ -31,6 +31,10 @@ class AppSettingsRepository(context: Context) {
         )
     }
 
+    val onboardingCompleted: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[ONBOARDING_COMPLETED] ?: false
+    }
+
     suspend fun setLocalFirstEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[LOCAL_FIRST_ENABLED] = enabled
@@ -49,10 +53,17 @@ class AppSettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[ONBOARDING_COMPLETED] = completed
+        }
+    }
+
     private companion object {
         val LOCAL_FIRST_ENABLED = booleanPreferencesKey("local_first_enabled")
         val PROFILE_DISPLAY_NAME = stringPreferencesKey("profile_display_name")
         val PROFILE_SIGNATURE = stringPreferencesKey("profile_signature")
         val PROFILE_AVATAR_URI = stringPreferencesKey("profile_avatar_uri")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
     }
 }
