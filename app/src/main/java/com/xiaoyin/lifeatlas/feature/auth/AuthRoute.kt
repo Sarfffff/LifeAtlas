@@ -26,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -165,6 +166,23 @@ private fun AuthFormCard(
                 }
             }
 
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AuthModeChip(
+                    selected = !uiState.isRegisterMode,
+                    text = "登录",
+                    onClick = {
+                        if (uiState.isRegisterMode) onSwitchMode()
+                    }
+                )
+                AuthModeChip(
+                    selected = uiState.isRegisterMode,
+                    text = "注册",
+                    onClick = {
+                        if (!uiState.isRegisterMode) onSwitchMode()
+                    }
+                )
+            }
+
             SecurityStatusText(uiState = uiState)
 
             OutlinedTextField(
@@ -208,7 +226,14 @@ private fun AuthFormCard(
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)
             ) {
-                Text(if (uiState.isRegisterMode) "注册并登录" else "登录", fontWeight = FontWeight.Black)
+                Text(
+                    when {
+                        uiState.isLoading -> "处理中..."
+                        uiState.isRegisterMode -> "注册并登录"
+                        else -> "登录"
+                    },
+                    fontWeight = FontWeight.Black
+                )
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -224,6 +249,20 @@ private fun AuthFormCard(
             }
         }
     }
+}
+
+@Composable
+private fun AuthModeChip(selected: Boolean, text: String, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = text,
+                fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold
+            )
+        }
+    )
 }
 
 @Composable

@@ -163,8 +163,8 @@ fun SettingsRoute(
             SettingsRow(
                 icon = Icons.Outlined.PrivacyTip,
                 title = "账号与安全",
-                subtitle = "邮箱验证、密码登录将在后续版本接入",
-                onClick = {}
+                subtitle = "邮箱验证、密码登录与登录状态管理",
+                onClick = onAccountClick
             )
             SettingsDivider()
             SettingsRow(
@@ -281,27 +281,14 @@ private fun TravelerProfileCard(profile: UserProfileSettings, onClick: () -> Uni
             ProfileAvatar(profile.avatarUri)
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = profile.displayName,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
-                        color = WildernessTeal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Lv.3",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFF09A52))
-                            .padding(horizontal = 9.dp, vertical = 4.dp)
-                    )
-                }
+                Text(
+                    text = profile.displayName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = WildernessTeal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Text(
                     text = profile.signature,
                     style = MaterialTheme.typography.bodyMedium,

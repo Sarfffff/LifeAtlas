@@ -33,10 +33,11 @@ class AuthRepository(context: Context) {
     private val dataStore = appContext.authDataStore
 
     val session: Flow<AuthSession> = dataStore.data.map { preferences ->
+        val firebaseUser = currentFirebaseUser()
         AuthSession(
-            isLoggedIn = preferences[IS_LOGGED_IN] ?: false,
-            email = preferences[EMAIL],
-            emailVerified = preferences[EMAIL_VERIFIED] ?: false,
+            isLoggedIn = firebaseUser != null || (preferences[IS_LOGGED_IN] ?: false),
+            email = firebaseUser?.email ?: preferences[EMAIL],
+            emailVerified = firebaseUser?.isEmailVerified ?: (preferences[EMAIL_VERIFIED] ?: false),
             lastLoginAt = preferences[LAST_LOGIN_AT],
             skippedLogin = preferences[SKIPPED_LOGIN] ?: false,
             failedLoginCount = preferences[FAILED_LOGIN_COUNT]?.toInt() ?: 0,
@@ -214,10 +215,13 @@ class AuthRepository(context: Context) {
         enforceRegisterRateLimit(snapshot[REGISTER_WINDOW_START], snapshot[REGISTER_COUNT])
         val auth = firebaseAuthOrError()
         val result = auth.createUserWithEmailAndPassword(email, password).await()
-        result.user?.sendEmailVerification()?.await()
+        val verificationSent = runCatching {
+            result.user?.sendEmailVerification()?.await()
+        }.isSuccess
         dataStore.edit { preferences ->
             recordRegisterAttempt(preferences)
             saveFirebaseSession(preferences, email, emailVerified = result.user?.isEmailVerified == true)
+            preferences[LAST_VERIFICATION_EMAIL_SENT] = if (verificationSent) System.currentTimeMillis() else 0L
         }
     }
 
@@ -272,6 +276,12 @@ class AuthRepository(context: Context) {
 
     fun isFirebaseConfigured(): Boolean = FirebaseApp.getApps(appContext).isNotEmpty()
 
+    private fun currentFirebaseUser() = if (isFirebaseConfigured()) {
+        FirebaseAuth.getInstance().currentUser
+    } else {
+        null
+    }
+
     private fun String.normalizeEmail(): String = trim().lowercase()
 
     private fun createSalt(): String {
@@ -300,6 +310,7 @@ class AuthRepository(context: Context) {
         val LOGIN_LOCKED_UNTIL = longPreferencesKey("login_locked_until")
         val REGISTER_WINDOW_START = longPreferencesKey("register_window_start")
         val REGISTER_COUNT = longPreferencesKey("register_count")
+        val LAST_VERIFICATION_EMAIL_SENT = longPreferencesKey("last_verification_email_sent")
 
         const val MAX_LOGIN_FAILURES = 5L
         const val LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000L

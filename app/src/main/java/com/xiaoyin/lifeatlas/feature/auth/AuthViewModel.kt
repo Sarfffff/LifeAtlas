@@ -65,6 +65,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun submit(onSuccess: () -> Unit = {}) {
         val state = formState.value
         viewModelScope.launch {
+            if (state.email.isBlank() || state.password.isBlank()) {
+                formState.update { it.copy(error = "请先填写邮箱和密码", message = null) }
+                return@launch
+            }
+            if (state.isRegisterMode && state.confirmPassword.isBlank()) {
+                formState.update { it.copy(error = "请再次输入密码", message = null) }
+                return@launch
+            }
             formState.update { it.copy(isLoading = true, error = null, message = null) }
             runCatching {
                 if (state.isRegisterMode) {
@@ -80,7 +88,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         confirmPassword = "",
                         message = if (state.isRegisterMode) {
                             if (authRepository.isFirebaseConfigured()) {
-                                "注册成功，验证邮件已发送。请打开邮箱完成验证。"
+                                "注册成功。系统已尝试发送验证邮件，请检查邮箱；如果没收到，可登录后重新发送。"
                             } else {
                                 "注册成功。当前是本地账号，接入 Firebase 后会发送真实邮箱验证邮件。"
                             }
