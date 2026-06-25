@@ -8,6 +8,7 @@ import com.xiaoyin.lifeatlas.core.auth.AuthSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -157,6 +158,33 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             runCatching { authRepository.sendPasswordResetEmail(email) }
                 .onSuccess {
                     formState.update { it.copy(message = "密码重置邮件已发送，请检查邮箱收件箱或垃圾邮件。", error = null) }
+                }
+                .onFailure { error ->
+                    formState.update { it.copy(error = error.message ?: "密码重置邮件发送失败", message = null) }
+                }
+        }
+    }
+
+    fun sendPasswordResetForCurrentAccount() {
+        viewModelScope.launch {
+            val email = authRepository.session.first().email.orEmpty()
+            if (email.isBlank()) {
+                formState.update { it.copy(error = "当前账号没有邮箱信息", message = null) }
+                return@launch
+            }
+            if (!authRepository.isFirebaseConfigured()) {
+                formState.update {
+                    it.copy(
+                        message = "当前是本地账号。配置 Firebase 后，会向 $email 发送真实重置密码邮件。",
+                        error = null
+                    )
+                }
+                return@launch
+            }
+
+            runCatching { authRepository.sendPasswordResetEmail(email) }
+                .onSuccess {
+                    formState.update { it.copy(message = "密码重置邮件已发送至 $email，请检查收件箱或垃圾邮件。", error = null) }
                 }
                 .onFailure { error ->
                     formState.update { it.copy(error = error.message ?: "密码重置邮件发送失败", message = null) }

@@ -19,9 +19,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.VerifiedUser
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -36,6 +38,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +57,9 @@ import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMuted
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun AuthRoute(
@@ -59,6 +67,8 @@ fun AuthRoute(
     viewModel: AuthViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showClearAccountConfirm by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -80,9 +90,14 @@ fun AuthRoute(
                 email = uiState.session.email.orEmpty(),
                 verified = uiState.session.emailVerified,
                 firebaseConfigured = uiState.firebaseConfigured,
+                lastLoginAt = uiState.session.lastLoginAt,
+                failedLoginCount = uiState.session.failedLoginCount,
+                lockedUntil = uiState.session.loginLockedUntil,
                 onSendVerification = viewModel::sendVerificationEmail,
                 onRefreshVerification = viewModel::refreshEmailVerification,
-                onLogout = viewModel::logout,
+                onResetPassword = viewModel::sendPasswordResetForCurrentAccount,
+                onLogout = { showLogoutConfirm = true },
+                onClearLocalAccount = { showClearAccountConfirm = true },
                 onContinue = onContinue
             )
         } else {
@@ -96,6 +111,10 @@ fun AuthRoute(
                 onForgotPassword = viewModel::sendPasswordResetEmail,
                 onSkip = { viewModel.skipLogin(onSkipped = onContinue) }
             )
+        }
+
+        if (uiState.session.isLoggedIn) {
+            AccountDangerZone(onClearLocalAccount = { showClearAccountConfirm = true })
         }
 
         uiState.message?.let {
@@ -120,6 +139,119 @@ fun AuthRoute(
                     style = MaterialTheme.typography.bodyMedium,
                     color = WildernessMuted
                 )
+            }
+        }
+    }
+
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text("退出登录") },
+            text = { Text("退出后仍会保留本机记录、照片缓存和设置。下次进入会回到账号页。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutConfirm = false
+                        viewModel.logout()
+                    }
+                ) {
+                    Text("确认退出")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    if (showClearAccountConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearAccountConfirm = false },
+            title = { Text("清除本地账号") },
+            text = { Text("这只会清除登录账号信息，不会删除 Room 中的记忆、照片、标签和地点数据。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearAccountConfirm = false
+                        viewModel.clearLocalAccount()
+                    }
+                ) {
+                    Text("确认清除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAccountConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SecurityInfoRows(
+    firebaseConfigured: Boolean,
+    lastLoginAt: Long?,
+    failedLoginCount: Int,
+    lockedUntil: Long?
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(WildernessMeadow.copy(alpha = 0.34f))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = if (firebaseConfigured) "账号类型：Firebase 邮箱账号" else "账号类型：本地账号",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Black,
+            color = WildernessTeal
+        )
+        Text(
+            text = "最近登录：${lastLoginAt?.formatAuthTime() ?: "暂无记录"}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = WildernessMuted
+        )
+        Text(
+            text = if (lockedUntil != null && lockedUntil > System.currentTimeMillis()) {
+                "安全状态：登录保护中，${lockedUntil.formatAuthTime()} 后再试"
+            } else {
+                "安全状态：连续失败 $failedLoginCount 次，达到 5 次会临时冷却"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = WildernessMuted
+        )
+    }
+}
+
+private fun Long.formatAuthTime(): String {
+    return Instant.ofEpochMilli(this)
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+}
+
+@Composable
+private fun AccountDangerZone(onClearLocalAccount: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("账号维护", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+            Text(
+                "清除本地账号只会移除登录信息，不会删除你的记忆、照片、标签和地点。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = WildernessMuted
+            )
+            OutlinedButton(onClick = onClearLocalAccount, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.DeleteOutline, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("清除本地账号信息")
             }
         }
     }
@@ -297,9 +429,14 @@ private fun LoggedInCard(
     email: String,
     verified: Boolean,
     firebaseConfigured: Boolean,
+    lastLoginAt: Long?,
+    failedLoginCount: Int,
+    lockedUntil: Long?,
     onSendVerification: () -> Unit,
     onRefreshVerification: () -> Unit,
+    onResetPassword: () -> Unit,
     onLogout: () -> Unit,
+    onClearLocalAccount: () -> Unit,
     onContinue: () -> Unit
 ) {
     Card(
@@ -315,6 +452,12 @@ private fun LoggedInCard(
                 modifier = Modifier.size(42.dp)
             )
             Text(email, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+            SecurityInfoRows(
+                firebaseConfigured = firebaseConfigured,
+                lastLoginAt = lastLoginAt,
+                failedLoginCount = failedLoginCount,
+                lockedUntil = lockedUntil
+            )
             Text(
                 text = when {
                     verified -> "邮箱已验证"
@@ -337,6 +480,11 @@ private fun LoggedInCard(
                         Text("本地标记邮箱已验证")
                     }
                 }
+            }
+            OutlinedButton(onClick = onResetPassword, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Email, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (firebaseConfigured) "发送重置密码邮件" else "查看重置密码说明")
             }
             Button(onClick = onContinue, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal)) {
                 Text("继续使用岁迹")
