@@ -1,17 +1,28 @@
 package com.xiaoyin.lifeatlas.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -40,40 +51,18 @@ fun LifeAtlasNavHost() {
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                containerColor = WildernessPaper,
-                tonalElevation = 0.dp
-            ) {
-                topLevelDestinations.forEach { destination ->
-                    NavigationBarItem(
-                        selected = currentRoute == destination.route,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = destination.icon,
-                                contentDescription = destination.label
-                            )
-                        },
-                        label = { Text(destination.label) }
-                        ,
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = WildernessTeal,
-                            selectedTextColor = WildernessTeal,
-                            indicatorColor = WildernessMeadow.copy(alpha = 0.7f),
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
-                        )
-                    )
+            LifeAtlasBottomBar(
+                currentRoute = currentRoute,
+                onDestinationClick = { destination ->
+                    navController.navigate(destination.route) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
-            }
+            )
         }
     ) { innerPadding ->
         NavHost(
@@ -247,6 +236,81 @@ fun LifeAtlasNavHost() {
                         navController.popBackStack()
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LifeAtlasBottomBar(
+    currentRoute: String,
+    onDestinationClick: (LifeAtlasDestination) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(92.dp)
+            .background(WildernessPaper)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        topLevelDestinations.forEach { destination ->
+            val selected = currentRoute == destination.route
+            val isAdd = destination == LifeAtlasDestination.AddRecord
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(70.dp)
+                    .clip(if (isAdd) RoundedCornerShape(24.dp) else RoundedCornerShape(28.dp))
+                    .background(
+                        when {
+                            isAdd -> androidx.compose.ui.graphics.Color.Transparent
+                            selected -> WildernessMeadow.copy(alpha = 0.7f)
+                            else -> androidx.compose.ui.graphics.Color.Transparent
+                        }
+                    )
+                    .clickable { onDestinationClick(destination) },
+                contentAlignment = Alignment.Center
+            ) {
+                if (isAdd) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(WildernessTeal.copy(alpha = 0.72f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = destination.icon,
+                                contentDescription = destination.label,
+                                tint = WildernessPaper,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Text(
+                            text = destination.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = WildernessTeal.copy(alpha = 0.62f)
+                        )
+                    }
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(
+                            imageVector = destination.icon,
+                            contentDescription = destination.label,
+                            tint = if (selected) WildernessTeal else WildernessTeal.copy(alpha = 0.58f),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text(
+                            text = destination.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
+                            color = if (selected) WildernessTeal else WildernessTeal.copy(alpha = 0.58f)
+                        )
+                    }
+                }
             }
         }
     }

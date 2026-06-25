@@ -1,6 +1,8 @@
 package com.xiaoyin.lifeatlas.feature.map
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,14 +10,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,16 +28,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.xiaoyin.lifeatlas.core.map.AmapMapView
+import com.xiaoyin.lifeatlas.R
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
-import com.xiaoyin.lifeatlas.core.map.MapMarkerItem
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessCoral
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
-import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
 
@@ -42,50 +50,35 @@ fun MapRoute(
     viewModel: MapViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val markerItems = uiState.locatedRecords.toMapMarkerItems()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = 22.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Text(text = "人生地图", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+        Text(
+            text = "人生地图",
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Black,
+            color = WildernessTeal
+        )
         Text(
             text = "每一枚坐标，都是你在旷野里停留过的证据。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+            style = MaterialTheme.typography.bodyLarge,
+            color = WildernessTeal.copy(alpha = 0.68f)
         )
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(26.dp),
-            colors = CardDefaults.cardColors(containerColor = WildernessPaper)
-        ) {
-            if (MapSdkConfig.isAmapConfigured) {
-                AmapMapView(
-                    markers = markerItems,
-                    onMarkerClick = onRecordClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp)
-                )
-            } else {
-                MapUnavailableContent()
-            }
-        }
+        IllustratedMapPanel(pinCount = uiState.locatedRecords.size)
         MapSummary(count = uiState.locatedRecords.size)
-        if (!MapSdkConfig.isAmapConfigured) {
-            MapConfigGuideCard()
-        }
+
         if (uiState.locatedRecords.isEmpty()) {
             MapEmptyCard()
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 uiState.locatedRecords.forEach { record ->
-                    LocatedRecordCard(record = record)
+                    LocatedRecordCard(record = record, onClick = { onRecordClick(record.id) })
                 }
             }
         }
@@ -93,113 +86,71 @@ fun MapRoute(
 }
 
 @Composable
+private fun IllustratedMapPanel(pinCount: Int) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(330.dp)
+                .clip(RoundedCornerShape(30.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.wilderness_map_panel),
+                contentDescription = "人生地图插画",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            val visiblePins = pinCount.coerceIn(1, 4)
+            if (visiblePins >= 1) MapPin(WildernessTeal, Modifier.align(Alignment.TopCenter).offset(y = 30.dp))
+            if (visiblePins >= 2) MapPin(WildernessCoral, Modifier.align(Alignment.CenterEnd).offset(x = (-52).dp, y = (-16).dp))
+            if (visiblePins >= 3) MapPin(Color(0xFF8D69B8), Modifier.align(Alignment.Center).offset(x = (-54).dp, y = 34.dp))
+            if (visiblePins >= 4) MapPin(WildernessWildflower, Modifier.align(Alignment.BottomCenter).offset(y = (-42).dp))
+        }
+    }
+}
+
+@Composable
+private fun MapPin(color: Color, modifier: Modifier = Modifier) {
+    Icon(
+        imageVector = Icons.Default.Place,
+        contentDescription = null,
+        tint = color,
+        modifier = modifier.size(48.dp)
+    )
+}
+
+@Composable
 private fun MapSummary(count: Int) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        MapStatChip(label = "坐标", value = "$count")
-        MapStatChip(label = "地图", value = MapSdkConfig.provider.displayName)
-        MapStatChip(label = "Key", value = MapSdkConfig.statusText)
+        MapStatChip(label = "坐标", value = "$count", modifier = Modifier.weight(0.8f))
+        MapStatChip(label = "地图", value = MapSdkConfig.provider.displayName, modifier = Modifier.weight(1.3f))
+        MapStatChip(label = "Key", value = MapSdkConfig.statusText, modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun MapStatChip(label: String, value: String) {
+private fun MapStatChip(label: String, value: String, modifier: Modifier = Modifier) {
     Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessMeadow.copy(alpha = 0.58f))
+        modifier = modifier.height(56.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessMeadow.copy(alpha = 0.72f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = label, style = MaterialTheme.typography.bodySmall, color = WildernessTeal.copy(alpha = 0.68f))
-            Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = WildernessTeal)
-        }
-    }
-}
-
-private fun List<MemoryRecord>.toMapMarkerItems(): List<MapMarkerItem> {
-    return mapNotNull { record ->
-        val latitude = record.latitude
-        val longitude = record.longitude
-        if (latitude == null || longitude == null) {
-            null
-        } else {
-            MapMarkerItem(
-                id = record.id,
-                latitude = latitude,
-                longitude = longitude,
-                title = record.title,
-                snippet = record.locationName ?: "$latitude, $longitude"
-            )
-        }
-    }
-}
-
-@Composable
-private fun MapUnavailableContent() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(260.dp)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "地图还在等风起",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = WildernessTeal
-            )
-            Text(
-                text = "配置高德 Key 后，你的坐标会在这里展开成一片旷野。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-            Text(
-                text = "设置页可查看完整配置检查。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.56f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun MapConfigGuideCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "地图配置检查",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = WildernessTeal
-            )
-            Text(
-                text = "当前缺少高德地图 Key，所以真实地图、拖拽地图和地址反查不会完整可用；定位权限只能获取当前位置，不能替代地图 Key。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)
-            )
-            MapSdkConfig.setupSteps.forEachIndexed { index, step ->
-                Text(
-                    text = "${index + 1}. $step",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f)
-                )
-            }
+            Text(text = "$label  ", style = MaterialTheme.typography.bodyLarge, color = WildernessTeal.copy(alpha = 0.62f))
+            Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
         }
     }
 }
@@ -208,56 +159,64 @@ private fun MapConfigGuideCard() {
 private fun MapEmptyCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessSky.copy(alpha = 0.34f))
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(text = "还没有点亮坐标", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = WildernessTeal)
+            Text(text = "还没有点亮坐标", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
             Text(
                 text = "新增或编辑记录时填写经纬度，地图就会出现属于你的第一枚 marker。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)
+                style = MaterialTheme.typography.bodyLarge,
+                color = WildernessTeal.copy(alpha = 0.72f)
             )
         }
     }
 }
 
 @Composable
-private fun LocatedRecordCard(record: MemoryRecord) {
+private fun LocatedRecordCard(record: MemoryRecord, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = WildernessPaper)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
                 text = record.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black,
                 color = WildernessTeal
             )
             record.locationName?.let { locationName ->
-                Text(text = locationName, style = MaterialTheme.typography.bodyMedium)
+                Text(text = locationName, style = MaterialTheme.typography.bodyLarge, color = WildernessTeal.copy(alpha = 0.78f))
             }
-            AssistChip(
-                onClick = { },
-                label = {
-                    Text("${record.latitude}, ${record.longitude}")
-                },
-                leadingIcon = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(WildernessWildflower.copy(alpha = 0.18f))
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
-                            .background(WildernessWildflower, RoundedCornerShape(4.dp))
+                            .size(10.dp)
+                            .background(WildernessWildflower, RoundedCornerShape(5.dp))
+                    )
+                    Text(
+                        text = "${record.latitude}, ${record.longitude}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = WildernessTeal
                     )
                 }
-            )
+            }
         }
     }
 }
