@@ -89,7 +89,8 @@ fun AuthRoute(
             LoggedInCard(
                 email = uiState.session.email.orEmpty(),
                 verified = uiState.session.emailVerified,
-                firebaseConfigured = uiState.firebaseConfigured,
+                remoteVerificationEnabled = uiState.remoteAuthConfigured,
+                authModeLabel = uiState.authModeLabel,
                 lastLoginAt = uiState.session.lastLoginAt,
                 failedLoginCount = uiState.session.failedLoginCount,
                 lockedUntil = uiState.session.loginLockedUntil,
@@ -131,10 +132,16 @@ fun AuthRoute(
             Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("当前阶段说明", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
                 Text(
-                    if (uiState.firebaseConfigured) {
-                        "Firebase 已配置：注册后会发送真实邮箱验证邮件，忘记密码会发送重置邮件。QQ 邮箱可以作为收件邮箱使用。"
-                    } else {
-                        "Firebase 尚未配置：当前仍是本地账号体验。把 google-services.json 放到 app 目录并启用邮箱/密码登录后，会发送真实邮箱验证和重置密码邮件。"
+                    when {
+                        uiState.backendConfigured -> {
+                            "国内后端已配置：注册登录会请求自建服务，邮箱验证和忘记密码邮件由后端通过阿里云邮件服务发送。"
+                        }
+                        uiState.firebaseConfigured -> {
+                            "Firebase 已显式启用：注册后会发送真实邮箱验证邮件，忘记密码会发送重置邮件。"
+                        }
+                        else -> {
+                            "当前为本地账号：不会访问 Firebase，因此国内网络不会卡在注册处理中。购买服务器后，在 local.properties 填入国内后端地址即可启用真实邮箱验证。"
+                        }
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = WildernessMuted
@@ -192,7 +199,7 @@ fun AuthRoute(
 
 @Composable
 private fun SecurityInfoRows(
-    firebaseConfigured: Boolean,
+    authModeLabel: String,
     lastLoginAt: Long?,
     failedLoginCount: Int,
     lockedUntil: Long?
@@ -206,7 +213,7 @@ private fun SecurityInfoRows(
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
-            text = if (firebaseConfigured) "账号类型：Firebase 邮箱账号" else "账号类型：本地账号",
+            text = "账号类型：$authModeLabel",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Black,
             color = WildernessTeal
@@ -410,10 +417,18 @@ private fun SecurityStatusText(uiState: AuthUiState) {
             "安全提醒：已连续失败 ${uiState.session.failedLoginCount} 次，连续失败 5 次会临时冷却。"
         }
         uiState.isRegisterMode -> {
-            "安全策略：每小时最多创建 3 次本地账号，且不会覆盖已有账号。"
+            if (uiState.remoteAuthConfigured) {
+                "安全策略：注册请求会走 ${uiState.authModeLabel}，每小时最多提交 3 次，避免恶意注册。"
+            } else {
+                "安全策略：每小时最多创建 3 次本地账号，且不会覆盖已有账号。"
+            }
         }
         else -> {
-            "安全策略：密码会加盐哈希后保存在本机，不保存明文密码。"
+            if (uiState.remoteAuthConfigured) {
+                "安全策略：当前使用 ${uiState.authModeLabel}；登录失败 5 次会临时冷却。"
+            } else {
+                "安全策略：密码会加盐哈希后保存在本机，不保存明文密码。"
+            }
         }
     }
 
@@ -428,7 +443,8 @@ private fun SecurityStatusText(uiState: AuthUiState) {
 private fun LoggedInCard(
     email: String,
     verified: Boolean,
-    firebaseConfigured: Boolean,
+    remoteVerificationEnabled: Boolean,
+    authModeLabel: String,
     lastLoginAt: Long?,
     failedLoginCount: Int,
     lockedUntil: Long?,
@@ -453,7 +469,7 @@ private fun LoggedInCard(
             )
             Text(email, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
             SecurityInfoRows(
-                firebaseConfigured = firebaseConfigured,
+                authModeLabel = authModeLabel,
                 lastLoginAt = lastLoginAt,
                 failedLoginCount = failedLoginCount,
                 lockedUntil = lockedUntil
@@ -461,14 +477,14 @@ private fun LoggedInCard(
             Text(
                 text = when {
                     verified -> "邮箱已验证"
-                    firebaseConfigured -> "邮箱尚未验证。请打开邮箱中的验证链接，然后回到这里刷新状态。"
-                    else -> "邮箱尚未验证。当前为本地预览验证，后续接入真实邮件验证。"
+                    remoteVerificationEnabled -> "邮箱尚未验证。请打开邮箱中的验证链接，然后回到这里刷新状态。"
+                    else -> "邮箱尚未验证。当前为本地预览验证，配置国内后端后会接入真实邮件验证。"
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = WildernessMuted
             )
             if (!verified) {
-                if (firebaseConfigured) {
+                if (remoteVerificationEnabled) {
                     OutlinedButton(onClick = onSendVerification, modifier = Modifier.fillMaxWidth()) {
                         Text("重新发送验证邮件")
                     }
@@ -484,7 +500,7 @@ private fun LoggedInCard(
             OutlinedButton(onClick = onResetPassword, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Outlined.Email, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(if (firebaseConfigured) "发送重置密码邮件" else "查看重置密码说明")
+                Text(if (remoteVerificationEnabled) "发送重置密码邮件" else "查看重置密码说明")
             }
             Button(onClick = onContinue, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal)) {
                 Text("继续使用岁迹")

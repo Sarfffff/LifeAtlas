@@ -20,6 +20,9 @@ data class AuthUiState(
     val isRegisterMode: Boolean = false,
     val isLoading: Boolean = false,
     val firebaseConfigured: Boolean = false,
+    val backendConfigured: Boolean = false,
+    val remoteAuthConfigured: Boolean = false,
+    val authModeLabel: String = "本地账号",
     val message: String? = null,
     val error: String? = null
 )
@@ -33,7 +36,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             combine(authRepository.session, formState) { session, form ->
                 form.copy(
                     session = session,
-                    firebaseConfigured = authRepository.isFirebaseConfigured()
+                    firebaseConfigured = authRepository.isFirebaseActive(),
+                    backendConfigured = authRepository.isBackendConfigured(),
+                    remoteAuthConfigured = authRepository.isRemoteAuthConfigured(),
+                    authModeLabel = authRepository.authModeLabel()
                 )
             }.collect { target.value = it }
         }
@@ -88,10 +94,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         password = "",
                         confirmPassword = "",
                         message = if (state.isRegisterMode) {
-                            if (authRepository.isFirebaseConfigured()) {
+                            if (authRepository.isBackendConfigured()) {
+                                "注册成功。验证邮件将由国内后端通过阿里云邮件服务发送，请检查邮箱。"
+                            } else if (authRepository.isFirebaseActive()) {
                                 "注册成功。系统已尝试发送验证邮件，请检查邮箱；如果没收到，可登录后重新发送。"
                             } else {
-                                "注册成功。当前是本地账号，接入 Firebase 后会发送真实邮箱验证邮件。"
+                                "注册成功。当前是本地账号；配置国内后端后会发送真实邮箱验证邮件。"
                             }
                         } else {
                             "登录成功"
@@ -111,10 +119,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 .onSuccess {
                     formState.update {
                         it.copy(
-                            message = if (authRepository.isFirebaseConfigured()) {
+                            message = if (authRepository.isRemoteAuthConfigured()) {
                                 "邮箱验证状态已刷新。"
                             } else {
-                                "已标记为邮箱已验证。本功能后续会替换为真实邮件验证。"
+                                "已标记为邮箱已验证。配置国内后端后会替换为真实邮件验证。"
                             },
                             error = null
                         )
@@ -141,13 +149,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun sendPasswordResetEmail() {
         val email = formState.value.email.trim()
         viewModelScope.launch {
-            if (!authRepository.isFirebaseConfigured()) {
+            if (!authRepository.isRemoteAuthConfigured()) {
                 formState.update {
                     it.copy(
                         message = if (email.isBlank()) {
-                            "请先输入邮箱。配置 Firebase 后会向该邮箱发送重置密码邮件。"
+                            "请先输入邮箱。配置国内后端后会向该邮箱发送重置密码邮件。"
                         } else {
-                            "已记录重置请求。配置 Firebase 后会向 $email 发送重置密码邮件。"
+                            "已记录重置请求。配置国内后端后会向 $email 发送重置密码邮件。"
                         },
                         error = null
                     )
@@ -172,10 +180,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 formState.update { it.copy(error = "当前账号没有邮箱信息", message = null) }
                 return@launch
             }
-            if (!authRepository.isFirebaseConfigured()) {
+            if (!authRepository.isRemoteAuthConfigured()) {
                 formState.update {
                     it.copy(
-                        message = "当前是本地账号。配置 Firebase 后，会向 $email 发送真实重置密码邮件。",
+                        message = "当前是本地账号。配置国内后端后，会向 $email 发送真实重置密码邮件。",
                         error = null
                     )
                 }

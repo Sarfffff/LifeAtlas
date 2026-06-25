@@ -40,9 +40,13 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         val amapApiKey = localProperty("lifeatlas.amap.apiKey")
+        val authApiBaseUrl = localProperty("lifeatlas.auth.baseUrl")
+        val authProvider = localProperty("lifeatlas.auth.provider").ifBlank { "local" }
         manifestPlaceholders["AMAP_API_KEY"] = amapApiKey
         buildConfigField("String", "AMAP_API_KEY", "\"${amapApiKey.escapeForBuildConfig()}\"")
         buildConfigField("boolean", "AMAP_CONFIGURED", amapApiKey.isNotBlank().toString())
+        buildConfigField("String", "AUTH_API_BASE_URL", "\"${authApiBaseUrl.escapeForBuildConfig()}\"")
+        buildConfigField("String", "AUTH_PROVIDER", "\"${authProvider.escapeForBuildConfig()}\"")
 
         javaCompileOptions {
             annotationProcessorOptions {

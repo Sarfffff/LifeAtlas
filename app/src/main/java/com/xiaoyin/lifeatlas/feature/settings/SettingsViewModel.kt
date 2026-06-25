@@ -29,6 +29,8 @@ data class SettingsUiState(
     val recordPreferences: RecordPreferenceSettings = RecordPreferenceSettings(),
     val cloudSyncSettings: CloudSyncSettings = CloudSyncSettings(),
     val firebaseConfigured: Boolean = false,
+    val backendConfigured: Boolean = false,
+    val authModeLabel: String = "本地账号",
     val isExporting: Boolean = false,
     val isExportingBackup: Boolean = false,
     val isImporting: Boolean = false,
@@ -74,7 +76,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     profile = profile,
                     recordPreferences = recordPreferences,
                     cloudSyncSettings = cloudSyncSettings,
-                    firebaseConfigured = authRepository.isFirebaseConfigured()
+                    firebaseConfigured = authRepository.isFirebaseActive(),
+                    backendConfigured = authRepository.isBackendConfigured(),
+                    authModeLabel = authRepository.authModeLabel()
                 )
             }.collect { settingsState ->
                 _uiState.update {
@@ -83,7 +87,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         profile = settingsState.profile,
                         recordPreferences = settingsState.recordPreferences,
                         cloudSyncSettings = settingsState.cloudSyncSettings,
-                        firebaseConfigured = settingsState.firebaseConfigured
+                        firebaseConfigured = settingsState.firebaseConfigured,
+                        backendConfigured = settingsState.backendConfigured,
+                        authModeLabel = settingsState.authModeLabel
                     )
                 }
             }
@@ -138,10 +144,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 it.copy(
                     isPreparingCloudSync = false,
                     message = SettingsMessage(
-                        if (authRepository.isFirebaseConfigured()) {
-                            "云同步准备检查完成：Firebase 已配置。下一阶段可接入云端数据表与冲突合并。"
+                        if (authRepository.isBackendConfigured()) {
+                            "云同步准备检查完成：国内后端已配置。下一阶段可接入云端数据表、媒体上传和冲突合并。"
+                        } else if (authRepository.isFirebaseActive()) {
+                            "云同步准备检查完成：Firebase 已显式启用。下一阶段可接入云端数据表与冲突合并。"
                         } else {
-                            "云同步准备检查完成：当前缺少 Firebase 配置，仍建议使用完整备份包迁移。"
+                            "云同步准备检查完成：当前缺少国内后端配置，仍建议使用完整备份包迁移。"
                         },
                         SettingsMessageType.Info
                     )

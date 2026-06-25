@@ -562,8 +562,9 @@ private fun CloudSyncDialog(
                         onCheckedChange = onEnabledChange
                     )
                 }
-                CloudSyncStatusLine("服务提供方", uiState.cloudSyncSettings.provider)
-                CloudSyncStatusLine("Firebase", if (uiState.firebaseConfigured) "已配置" else "未配置")
+                CloudSyncStatusLine("账号服务", uiState.authModeLabel)
+                CloudSyncStatusLine("国内后端", if (uiState.backendConfigured) "已配置" else "未配置")
+                CloudSyncStatusLine("Firebase", if (uiState.firebaseConfigured) "已显式启用" else "未启用")
                 CloudSyncStatusLine("当前上传策略", if (uiState.localFirstEnabled) "本地优先，不自动上传" else "允许后续接入云端同步")
                 CloudSyncStatusLine("最近检查", uiState.cloudSyncSettings.lastPreparedAt?.formatDateTime() ?: "尚未检查")
                 Text(
