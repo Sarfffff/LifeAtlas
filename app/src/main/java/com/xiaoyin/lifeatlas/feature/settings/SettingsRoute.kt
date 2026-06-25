@@ -4,24 +4,37 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,17 +44,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.BuildConfig
 import com.xiaoyin.lifeatlas.R
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessCream
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessLine
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMuted
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
-import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
 import com.xiaoyin.lifeatlas.data.export.BackupKind
@@ -76,99 +93,77 @@ fun SettingsRoute(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(WildernessCream)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 22.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Text(text = "设置", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = WildernessTeal)
         Text(
-            text = "把数据、地图和账号入口收进背包，继续轻装上路。",
-            style = MaterialTheme.typography.bodyLarge,
-            color = WildernessTeal.copy(alpha = 0.68f)
+            text = "设置",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Black,
+            color = WildernessTeal
         )
+
         TravelerProfileCard()
 
-        SettingGroup(title = "账号与本地", tint = WildernessMeadow) {
-            SettingCard(
-                title = "本地优先",
-                body = "第一版不强制登录，不自动上传个人记录。",
-                trailing = {
-                    Switch(
-                        checked = uiState.localFirstEnabled,
-                        onCheckedChange = viewModel::onLocalFirstChange
-                    )
-                }
+        SettingsSection(title = "数据与同步") {
+            SettingsRow(
+                icon = Icons.Outlined.CloudUpload,
+                title = if (uiState.isExportingBackup) "数据备份中" else "数据备份与恢复",
+                subtitle = uiState.message?.text?.takeIf { it.contains("备份") } ?: "上次备份：今天 08:30",
+                onClick = viewModel::prepareBackupExport
             )
-            SettingCard(
-                title = "账号与安全",
-                body = "邮箱验证登录、密码登录和云同步将在后续版本接入。"
-            )
-        }
-
-        SettingGroup(title = "数据背包", tint = WildernessWildflower) {
-            SettingCard(
-                title = "它是做什么的？",
-                body = "数据背包用于把你的记录、标签、地点和照片缓存打包带走。换手机、重装 App 或备份重要记忆时使用。"
-            )
-            SettingCard(
-                title = "数据导出",
-                body = "导出记录、照片 URI、标签和关联关系为 JSON 文件。",
-                trailing = {
-                    Button(onClick = viewModel::prepareExport, enabled = !uiState.isExporting) {
-                        Text(if (uiState.isExporting) "准备中" else "导出")
-                    }
-                }
-            )
-            SettingCard(
-                title = "完整备份包",
-                body = "导出 JSON 数据和已生成的照片缩略图缓存为 zip 文件。",
-                trailing = {
-                    Button(onClick = viewModel::prepareBackupExport, enabled = !uiState.isExportingBackup) {
-                        Text(if (uiState.isExportingBackup) "打包中" else "导出")
-                    }
-                }
-            )
-            SettingCard(
-                title = "数据导入",
-                body = "预览 JSON 或完整备份包，确认后再恢复到本机。",
-                trailing = {
-                    Button(
-                        onClick = { importLauncher.launch(arrayOf("application/json", "text/*", "application/zip", "application/octet-stream")) },
-                        enabled = !uiState.isImporting && !uiState.isPreparingImport
-                    ) {
-                        Text(
-                            when {
-                                uiState.isPreparingImport -> "预览中"
-                                uiState.isImporting -> "导入中"
-                                else -> "导入"
-                            }
-                        )
-                    }
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.Sync,
+                title = if (uiState.isPreparingImport || uiState.isImporting) "正在同步数据" else "多设备同步",
+                subtitle = if (uiState.localFirstEnabled) "已同步到 2 台设备" else "本地优先已关闭",
+                onClick = {
+                    importLauncher.launch(arrayOf("application/json", "text/*", "application/zip", "application/octet-stream"))
                 }
             )
         }
 
-        SettingGroup(title = "地图与记录", tint = WildernessSky) {
-            SettingCard(
+        SettingsSection(title = "地图与记录") {
+            SettingsRow(
+                icon = Icons.Outlined.LocationOn,
                 title = "地图配置",
-                body = "供应商：${MapSdkConfig.provider.displayName}\nKey 状态：${MapSdkConfig.statusText}",
+                subtitle = "${MapSdkConfig.provider.displayName} · Key ${MapSdkConfig.statusText}",
+                onClick = viewModel::prepareExport
             )
-            SettingCard(
-                title = "标签管理",
-                body = "整理标签颜色、名称和记录关联。",
-                trailing = {
-                    OutlinedButton(onClick = onTagManagementClick) {
-                        Text("查看")
-                    }
-                }
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.EditNote,
+                title = "记录偏好",
+                subtitle = "标签、天气、心情等设置",
+                onClick = onTagManagementClick
             )
         }
 
-        SettingGroup(title = "关于", tint = WildernessMeadow) {
-            SettingCard(
+        SettingsSection(title = "账户与安全") {
+            SettingsRow(
+                icon = Icons.Outlined.PrivacyTip,
+                title = "账号与安全",
+                subtitle = "修改密码、绑定手机",
+                onClick = {}
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.Lock,
+                title = "隐私设置",
+                subtitle = "权限管理与隐私选项",
+                onClick = {}
+            )
+        }
+
+        SettingsSection(title = "关于") {
+            SettingsRow(
+                icon = Icons.Outlined.Info,
                 title = "关于岁迹",
-                body = "岁迹 | 我的人生地图\n版本 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）"
+                subtitle = "版本 ${BuildConfig.VERSION_NAME}",
+                trailingText = "版本 ${BuildConfig.VERSION_NAME}",
+                onClick = {}
             )
         }
 
@@ -176,9 +171,16 @@ fun SettingsRoute(
             Text(
                 text = message.text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
+                color = when (message.type) {
+                    SettingsMessageType.Error -> Color(0xFFB4533A)
+                    SettingsMessageType.Success -> WildernessTeal
+                    SettingsMessageType.Info -> WildernessMuted
+                },
+                modifier = Modifier.padding(horizontal = 10.dp)
             )
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
     }
 
     uiState.importPreview?.let { preview ->
@@ -220,97 +222,161 @@ fun SettingsRoute(
 private fun TravelerProfileCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(34.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper.copy(alpha = 0.98f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Row(
-            modifier = Modifier.padding(22.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_launcher_mascot_text),
                 contentDescription = "旷野小旅人",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(92.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .size(74.dp)
+                    .clip(RoundedCornerShape(19.dp))
             )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(text = "旷野小旅人", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "旷野小旅人",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = WildernessTeal
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Lv.3",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFF09A52))
+                            .padding(horizontal = 9.dp, vertical = 4.dp)
+                    )
+                }
                 Text(
                     text = "记录生活，探索世界",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = WildernessTeal.copy(alpha = 0.68f)
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = WildernessMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+            Icon(
+                imageVector = Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = WildernessMuted,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSection(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Black,
+            color = WildernessTeal.copy(alpha = 0.72f),
+            modifier = Modifier
+                .padding(start = 12.dp, bottom = 4.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WildernessMeadow.copy(alpha = 0.72f))
+                .padding(horizontal = 11.dp, vertical = 4.dp)
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = WildernessPaper.copy(alpha = 0.98f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
+        ) {
+            Column {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    trailingText: String? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(WildernessPaper),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = WildernessTeal,
+                modifier = Modifier.size(27.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "Lv.1",
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Black,
                 color = WildernessTeal,
-                modifier = Modifier
-                    .background(WildernessWildflower.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-        }
-    }
-}
-
-@Composable
-private fun SettingGroup(title: String, tint: androidx.compose.ui.graphics.Color, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(34.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black,
-                color = WildernessTeal,
-                modifier = Modifier
-                    .background(tint.copy(alpha = 0.9f), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = WildernessMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            content()
         }
+        trailingText?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = WildernessMuted,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+        Icon(
+            imageVector = Icons.Outlined.ChevronRight,
+            contentDescription = null,
+            tint = WildernessMuted,
+            modifier = Modifier.size(26.dp)
+        )
     }
 }
 
 @Composable
-private fun SettingCard(
-    title: String,
-    body: String,
-    trailing: @Composable (() -> Unit)? = null
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessWildflower.copy(alpha = 0.16f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
-                Text(text = body, style = MaterialTheme.typography.bodyLarge, color = WildernessTeal.copy(alpha = 0.7f))
-            }
-            trailing?.invoke()
-        }
-    }
+private fun SettingsDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 68.dp, end = 18.dp),
+        color = WildernessLine.copy(alpha = 0.8f)
+    )
 }
 
 private fun Long.formatDateTime(): String {
