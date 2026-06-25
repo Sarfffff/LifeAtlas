@@ -4,10 +4,12 @@ import com.xiaoyin.lifeatlas.core.media.PhotoCacheManager
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.core.model.Tag
+import com.xiaoyin.lifeatlas.data.dao.FavoriteRecordDao
 import com.xiaoyin.lifeatlas.data.dao.MemoryRecordDao
 import com.xiaoyin.lifeatlas.data.dao.PhotoDao
 import com.xiaoyin.lifeatlas.data.dao.TagDao
 import com.xiaoyin.lifeatlas.data.entity.MemoryTagCrossRefEntity
+import com.xiaoyin.lifeatlas.data.entity.FavoriteRecordEntity
 import com.xiaoyin.lifeatlas.data.entity.MemoryRecordEntity
 import com.xiaoyin.lifeatlas.data.entity.PhotoEntity
 import com.xiaoyin.lifeatlas.data.entity.TagEntity
@@ -22,6 +24,7 @@ class MemoryRepository(
     private val memoryRecordDao: MemoryRecordDao,
     private val photoDao: PhotoDao,
     private val tagDao: TagDao,
+    private val favoriteRecordDao: FavoriteRecordDao,
     private val photoCacheManager: PhotoCacheManager
 ) {
     fun observeAllRecords(): Flow<List<MemoryRecord>> {
@@ -56,6 +59,10 @@ class MemoryRepository(
         return photoDao.observeFirstPhotosByRecord().map { photos ->
             photos.associate { it.recordId to it.toModel() }
         }
+    }
+
+    fun observeFavoriteRecordIds(): Flow<Set<Long>> {
+        return favoriteRecordDao.observeFavoriteRecordIds().map { it.toSet() }
     }
 
     fun observePhotoCount(): Flow<Int> {
@@ -109,6 +116,19 @@ class MemoryRepository(
     suspend fun deleteRecord(id: Long) {
         deletePhotoCaches(photoDao.getByRecordId(id))
         memoryRecordDao.deleteById(id)
+    }
+
+    suspend fun setFavorite(recordId: Long, favorite: Boolean) {
+        if (favorite) {
+            favoriteRecordDao.insert(
+                FavoriteRecordEntity(
+                    recordId = recordId,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+        } else {
+            favoriteRecordDao.delete(recordId)
+        }
     }
 
     suspend fun renameTag(tagId: Long, newName: String) {

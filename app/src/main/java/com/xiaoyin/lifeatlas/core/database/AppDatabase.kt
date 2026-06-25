@@ -7,22 +7,31 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xiaoyin.lifeatlas.data.dao.MemoryRecordDao
+import com.xiaoyin.lifeatlas.data.dao.FavoriteRecordDao
 import com.xiaoyin.lifeatlas.data.dao.PhotoDao
 import com.xiaoyin.lifeatlas.data.dao.TagDao
+import com.xiaoyin.lifeatlas.data.entity.FavoriteRecordEntity
 import com.xiaoyin.lifeatlas.data.entity.MemoryTagCrossRefEntity
 import com.xiaoyin.lifeatlas.data.entity.MemoryRecordEntity
 import com.xiaoyin.lifeatlas.data.entity.PhotoEntity
 import com.xiaoyin.lifeatlas.data.entity.TagEntity
 
 @Database(
-    entities = [MemoryRecordEntity::class, PhotoEntity::class, TagEntity::class, MemoryTagCrossRefEntity::class],
-    version = 3,
+    entities = [
+        MemoryRecordEntity::class,
+        PhotoEntity::class,
+        TagEntity::class,
+        MemoryTagCrossRefEntity::class,
+        FavoriteRecordEntity::class
+    ],
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun memoryRecordDao(): MemoryRecordDao
     abstract fun photoDao(): PhotoDao
     abstract fun tagDao(): TagDao
+    abstract fun favoriteRecordDao(): FavoriteRecordDao
 
     companion object {
         @Volatile
@@ -79,13 +88,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val migration3To4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `favorite_records` (
+                        `record_id` INTEGER NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`record_id`),
+                        FOREIGN KEY(`record_id`) REFERENCES `memory_records`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_favorite_records_record_id` ON `favorite_records` (`record_id`)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "lifeatlas.db"
-                ).addMigrations(migration1To2, migration2To3).build().also { instance = it }
+                ).addMigrations(migration1To2, migration2To3, migration3To4).build().also { instance = it }
             }
         }
     }

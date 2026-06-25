@@ -95,7 +95,6 @@ fun MapRoute(
     val records = uiState.locatedRecords
     var selectedIndex by remember(records) { mutableIntStateOf(0) }
     var userSelected by remember(records) { mutableStateOf(false) }
-    var favoriteRecordIds by remember { mutableStateOf(setOf<Long>()) }
 
     LaunchedEffect(records, userSelected) {
         if (records.isEmpty() || userSelected) return@LaunchedEffect
@@ -136,6 +135,7 @@ fun MapRoute(
 
         MapStatusPills(
             count = records.size,
+            cityCount = uiState.litCities.size,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 104.dp, start = 18.dp, end = 18.dp)
@@ -164,13 +164,13 @@ fun MapRoute(
             MapMemorySheet(
                 record = selectedRecord,
                 photo = uiState.firstPhotosByRecordId[selectedRecord.id],
-                isFavorite = selectedRecord.id in favoriteRecordIds,
+                litCityCount = uiState.litCities.size,
+                isFavorite = selectedRecord.id in uiState.favoriteRecordIds,
                 onFavoriteClick = {
-                    favoriteRecordIds = if (selectedRecord.id in favoriteRecordIds) {
-                        favoriteRecordIds - selectedRecord.id
-                    } else {
-                        favoriteRecordIds + selectedRecord.id
-                    }
+                    viewModel.setFavorite(
+                        recordId = selectedRecord.id,
+                        favorite = selectedRecord.id !in uiState.favoriteRecordIds
+                    )
                 },
                 onShareClick = {
                     context.startActivity(
@@ -304,10 +304,10 @@ private fun MapTopBar(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MapStatusPills(count: Int, modifier: Modifier = Modifier) {
+private fun MapStatusPills(count: Int, cityCount: Int, modifier: Modifier = Modifier) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         MapPill(label = "坐标", value = "$count", modifier = Modifier.weight(0.9f))
-        MapPill(label = "地图", value = if (MapSdkConfig.isAmapConfigured) "城市地图" else "人生地图", modifier = Modifier.weight(1.2f))
+        MapPill(label = "点亮", value = "${cityCount}城", modifier = Modifier.weight(1.1f))
         MapPill(label = "Key", value = MapSdkConfig.statusText, modifier = Modifier.weight(1f))
     }
 }
@@ -410,6 +410,7 @@ private fun NewMapMemoryButton(onClick: () -> Unit, modifier: Modifier = Modifie
 private fun MapMemorySheet(
     record: MemoryRecord,
     photo: Photo?,
+    litCityCount: Int,
     isFavorite: Boolean,
     onFavoriteClick: () -> Unit,
     onShareClick: () -> Unit,
@@ -447,6 +448,12 @@ private fun MapMemorySheet(
                         Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.75f))
                     }
                     Text(text = record.dateText(), style = MaterialTheme.typography.bodyMedium, color = WildernessMuted)
+                    Text(
+                        text = "已点亮 $litCityCount 座城市/地点",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = WildernessTeal.copy(alpha = 0.72f)
+                    )
                     Text(
                         text = record.content.ifBlank { "这处坐标已经被你的记忆点亮。" },
                         style = MaterialTheme.typography.bodyMedium,
