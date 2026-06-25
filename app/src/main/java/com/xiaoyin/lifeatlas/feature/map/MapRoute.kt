@@ -42,7 +42,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -94,10 +96,13 @@ fun MapRoute(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     var selectedCity by remember(uiState.litCities) { mutableStateOf<String?>(null) }
-    val records = remember(uiState.locatedRecords, selectedCity) {
-        selectedCity?.let { city ->
-            uiState.locatedRecords.filter { it.mapCityKey() == city }
-        } ?: uiState.locatedRecords
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearchPanel by remember { mutableStateOf(false) }
+    var forceAtlasLayer by remember { mutableStateOf(false) }
+    val records = remember(uiState.locatedRecords, selectedCity, searchQuery) {
+        uiState.locatedRecords
+            .filter { record -> selectedCity == null || record.mapCityKey() == selectedCity }
+            .filter { record -> searchQuery.isBlank() || record.matchesMapQuery(searchQuery) }
     }
     var selectedIndex by remember(records) { mutableIntStateOf(0) }
     var userSelected by remember(records) { mutableStateOf(false) }
@@ -120,6 +125,7 @@ fun MapRoute(
         LifeMapCanvas(
             records = records,
             selectedIndex = selectedIndex,
+            forceAtlasLayer = forceAtlasLayer,
             onMarkerClick = { index ->
                 selectedIndex = index
                 userSelected = true
@@ -134,6 +140,9 @@ fun MapRoute(
         )
 
         MapTopBar(
+            forceAtlasLayer = forceAtlasLayer,
+            onSearchClick = { showSearchPanel = !showSearchPanel },
+            onLayerClick = { forceAtlasLayer = !forceAtlasLayer },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(start = 18.dp, top = 18.dp, end = 18.dp)
@@ -164,6 +173,27 @@ fun MapRoute(
                 .align(Alignment.TopCenter)
                 .padding(top = 158.dp, start = 18.dp, end = 18.dp)
         )
+
+        if (showSearchPanel) {
+            MapSearchPanel(
+                query = searchQuery,
+                resultCount = records.size,
+                onQueryChange = {
+                    searchQuery = it
+                    selectedIndex = 0
+                    userSelected = it.isNotBlank()
+                },
+                onClear = {
+                    searchQuery = ""
+                    selectedIndex = 0
+                    userSelected = false
+                },
+                onClose = { showSearchPanel = false },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 204.dp, start = 18.dp, end = 18.dp)
+            )
+        }
 
         MapLocateButton(
             modifier = Modifier
@@ -222,6 +252,7 @@ fun MapRoute(
 private fun LifeMapCanvas(
     records: List<MemoryRecord>,
     selectedIndex: Int,
+    forceAtlasLayer: Boolean,
     onMarkerClick: (Int) -> Unit,
     onRealMarkerClick: (Long) -> Unit,
     modifier: Modifier = Modifier
@@ -243,7 +274,7 @@ private fun LifeMapCanvas(
     }
 
     Box(modifier = modifier.clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))) {
-        if (MapSdkConfig.isAmapConfigured) {
+        if (MapSdkConfig.isAmapConfigured && !forceAtlasLayer) {
             AmapMapView(
                 markers = records.map { record ->
                     MapMarkerItem(
@@ -289,7 +320,7 @@ private fun LifeMapCanvas(
             }
         }
 
-        if (!MapSdkConfig.isAmapConfigured) {
+        if (!MapSdkConfig.isAmapConfigured || forceAtlasLayer) {
             MapZoomControls(
                 scale = scale,
                 onZoomIn = { scale = (scale + 0.24f).coerceAtMost(2.6f) },
@@ -306,7 +337,12 @@ private fun LifeMapCanvas(
 }
 
 @Composable
-private fun MapTopBar(modifier: Modifier = Modifier) {
+private fun MapTopBar(
+    forceAtlasLayer: Boolean,
+    onSearchClick: () -> Unit,
+    onLayerClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -318,11 +354,68 @@ private fun MapTopBar(modifier: Modifier = Modifier) {
             Text(text = "人生地图", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconButton(onClick = {}) {
+            IconButton(onClick = onSearchClick) {
                 Icon(Icons.Outlined.Search, contentDescription = "搜索", tint = WildernessTeal, modifier = Modifier.size(30.dp))
             }
-            IconButton(onClick = {}) {
-                Icon(Icons.Outlined.Layers, contentDescription = "图层", tint = WildernessTeal, modifier = Modifier.size(30.dp))
+            IconButton(onClick = onLayerClick) {
+                Icon(
+                    Icons.Outlined.Layers,
+                    contentDescription = "图层",
+                    tint = if (forceAtlasLayer) WildernessWildflower else WildernessTeal,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapSearchPanel(
+    query: String,
+    resultCount: Int,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper.copy(alpha = 0.96f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                leadingIcon = {
+                    Icon(Icons.Outlined.Search, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.65f))
+                },
+                placeholder = { Text("搜索事件、地点或心情") },
+                singleLine = true
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (query.isBlank()) "输入关键词后筛选地图记忆" else "找到 $resultCount 条地图记忆",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = WildernessTeal.copy(alpha = 0.72f)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (query.isNotBlank()) {
+                        TextButton(onClick = onClear) {
+                            Text("清空")
+                        }
+                    }
+                    TextButton(onClick = onClose) {
+                        Text("收起")
+                    }
+                }
             }
         }
     }
@@ -639,6 +732,18 @@ private fun MemoryRecord.mapCityKey(): String {
         .firstOrNull { it.isNotBlank() }
         ?.take(8)
         ?: source.take(8)
+}
+
+private fun MemoryRecord.matchesMapQuery(query: String): Boolean {
+    val normalizedQuery = query.trim()
+    if (normalizedQuery.isBlank()) return true
+    return listOf(
+        title,
+        content,
+        locationName.orEmpty(),
+        mood.orEmpty(),
+        mapCityKey()
+    ).any { field -> field.contains(normalizedQuery, ignoreCase = true) }
 }
 
 private fun MemoryRecord.toShareText(): String {
