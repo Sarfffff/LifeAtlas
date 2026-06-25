@@ -646,19 +646,22 @@ private fun MapMemorySheet(
                     MoodChip(record.mood ?: "开心")
                 }
             }
-            Spacer(modifier = Modifier.height(18.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1.05f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
                     Icon(if (isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(5.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(if (isFavorite) "已收藏" else "收藏", fontWeight = FontWeight.Black, maxLines = 1)
                 }
-                OutlinedButton(onClick = onShareClick, modifier = Modifier.weight(1.05f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+                OutlinedButton(onClick = onShareClick, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
                     Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(5.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text("分享", fontWeight = FontWeight.Black, maxLines = 1)
                 }
-                Button(onClick = onDetailClick, modifier = Modifier.weight(1.55f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)) {
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(onClick = onDetailClick, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                     Text("查看详情", fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }

@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
@@ -112,7 +113,12 @@ fun RecordDetailRoute(
         if (record == null) {
             EmptyDetailCard()
         } else {
-            RecordDetailContent(record = record, photos = uiState.photos, tags = uiState.tags)
+            RecordDetailContent(
+                record = record,
+                photos = uiState.photos,
+                tags = uiState.tags,
+                onEditPhotos = { onEdit(record.id) }
+            )
         }
     }
 
@@ -142,7 +148,12 @@ fun RecordDetailRoute(
 }
 
 @Composable
-private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags: List<Tag>) {
+private fun RecordDetailContent(
+    record: MemoryRecord,
+    photos: List<Photo>,
+    tags: List<Tag>,
+    onEditPhotos: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = WildernessPaper)
@@ -155,7 +166,9 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags:
                 text = record.title,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black,
-                color = WildernessTeal
+                color = WildernessTeal,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = record.recordTime.formatDateTime(),
@@ -189,20 +202,7 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags:
             }
         }
     }
-    if (photos.isNotEmpty()) {
-        Text(text = "照片记忆", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = WildernessTeal)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(photos) { photo ->
-                Card(
-                    modifier = Modifier.width(220.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = WildernessPaper)
-                ) {
-                    DetailPhotoImage(photo = photo)
-                }
-            }
-        }
-    }
+    DetailPhotoSection(photos = photos, onEditPhotos = onEditPhotos)
     Spacer(modifier = Modifier.height(8.dp))
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -214,6 +214,70 @@ private fun RecordDetailContent(record: MemoryRecord, photos: List<Photo>, tags:
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
         )
+    }
+}
+
+@Composable
+private fun DetailPhotoSection(photos: List<Photo>, onEditPhotos: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "照片记忆",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        color = WildernessTeal
+                    )
+                    Text(
+                        text = if (photos.isEmpty()) "还没有照片，可以为这段记忆补一张风景。" else "已保存 ${photos.size} 张照片",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                    )
+                }
+                OutlinedButton(onClick = onEditPhotos) {
+                    Text(if (photos.isEmpty()) "添加照片" else "管理照片")
+                }
+            }
+
+            if (photos.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(132.dp)
+                        .background(WildernessSky.copy(alpha = 0.26f), RoundedCornerShape(20.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "添加照片后，这里会展示这段记忆的画面。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = WildernessTeal.copy(alpha = 0.72f)
+                    )
+                }
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(photos) { photo ->
+                        Card(
+                            modifier = Modifier.width(228.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                        ) {
+                            DetailPhotoImage(photo = photo)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
