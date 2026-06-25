@@ -1,5 +1,6 @@
 package com.xiaoyin.lifeatlas.feature.timeline
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,18 +10,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SentimentSatisfied
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -30,19 +36,32 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.xiaoyin.lifeatlas.R
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
-import com.xiaoyin.lifeatlas.core.time.formatDate
+import com.xiaoyin.lifeatlas.core.model.Photo
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessCoral
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+private data class TimelineMonthGroup(
+    val monthNumber: String,
+    val year: String,
+    val records: List<MemoryRecord>
+)
 
 @Composable
 fun TimelineRoute(
@@ -51,36 +70,41 @@ fun TimelineRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val records = uiState.records
+    val groups = records.groupBy { it.recordTime.monthKey() }
+        .map { (key, monthRecords) ->
+            val parts = key.split("-")
+            TimelineMonthGroup(
+                year = parts.getOrNull(0).orEmpty(),
+                monthNumber = parts.getOrNull(1)?.trimStart('0').orEmpty(),
+                records = monthRecords
+            )
+        }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 22.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp)
+            .padding(horizontal = 18.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        PageHeader()
+        TimelineHeader()
         TimelineSearchBar(
             query = uiState.searchQuery,
             onQueryChange = viewModel::onSearchQueryChange,
             onClear = viewModel::clearSearchQuery
         )
-        TimelineTagFilter(
-            tags = uiState.tags,
-            selectedTagId = uiState.selectedTagId,
-            onSelectTag = viewModel::selectTag
-        )
+        TimelineCategoryChips()
         TimelineSearchResultHint(query = uiState.searchQuery, resultCount = records.size)
 
         if (records.isEmpty()) {
             EmptyTrail(text = uiState.emptyStateText())
         } else {
-            val groupedRecords = records.groupBy { it.recordTime.formatMonth() }
-            groupedRecords.forEach { (month, monthRecords) ->
+            groups.forEachIndexed { index, group ->
                 TimelineMonthSection(
-                    month = month,
-                    records = monthRecords,
+                    group = group,
+                    isLast = index == groups.lastIndex,
+                    firstPhotosByRecordId = uiState.firstPhotosByRecordId,
                     onRecordClick = onRecordClick
                 )
             }
@@ -89,23 +113,24 @@ fun TimelineRoute(
 }
 
 @Composable
-private fun PageHeader() {
-    Card(
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessPaper),
-        modifier = Modifier.fillMaxWidth()
+private fun TimelineHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(text = "时间轴", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = WildernessTeal)
-            Text(
-                text = "沿着记忆的小径，回看每一段走过的风景。",
-                style = MaterialTheme.typography.bodyLarge,
-                color = WildernessTeal.copy(alpha = 0.68f)
-            )
-        }
+        Text(
+            text = "时间轴",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Black,
+            color = WildernessTeal
+        )
+        Icon(
+            imageVector = Icons.Outlined.Tune,
+            contentDescription = "筛选",
+            tint = WildernessTeal,
+            modifier = Modifier.size(30.dp)
+        )
     }
 }
 
@@ -123,9 +148,14 @@ private fun TimelineSearchBar(
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(22.dp),
-            placeholder = { Text("寻找记忆") },
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
+            shape = RoundedCornerShape(28.dp),
+            leadingIcon = {
+                Icon(imageVector = Icons.Outlined.Search, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.55f))
+            },
+            placeholder = { Text("搜索记忆、地点或标签") },
             singleLine = true
         )
         if (query.isNotBlank()) {
@@ -137,47 +167,31 @@ private fun TimelineSearchBar(
 }
 
 @Composable
-private fun TimelineTagFilter(
-    tags: List<com.xiaoyin.lifeatlas.core.model.Tag>,
-    selectedTagId: Long?,
-    onSelectTag: (Long?) -> Unit
-) {
-    if (tags.isEmpty()) {
-        Text(
-            text = "暂无标签。新增或编辑记录时填写标签后，可在这里筛选。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = WildernessTeal.copy(alpha = 0.62f)
-        )
-        return
-    }
-
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        item {
-            FilterChip(
-                selected = selectedTagId == null,
-                onClick = { onSelectTag(null) },
-                label = { Text("全部") },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = WildernessMeadow,
-                    selectedLabelColor = WildernessTeal
+private fun TimelineCategoryChips() {
+    val chips = listOf(
+        "全部" to WildernessMeadow,
+        "旅行" to WildernessSky.copy(alpha = 0.72f),
+        "日常" to WildernessWildflower.copy(alpha = 0.72f),
+        "工作" to Color(0xFFD9C8EF),
+        "生活" to WildernessCoral.copy(alpha = 0.35f)
+    )
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(chips.size) { index ->
+            val (label, color) = chips[index]
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(color)
+                    .padding(horizontal = 16.dp, vertical = 7.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black,
+                    color = WildernessTeal
                 )
-            )
-        }
-        items(tags) { tag ->
-            FilterChip(
-                selected = selectedTagId == tag.id,
-                onClick = { onSelectTag(tag.id) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = WildernessWildflower.copy(alpha = 0.75f),
-                    selectedLabelColor = WildernessTeal
-                ),
-                label = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TagColorDot(color = tag.color)
-                        Text(tag.name)
-                    }
-                }
-            )
+            }
         }
     }
 }
@@ -195,37 +209,29 @@ private fun TimelineSearchResultHint(query: String, resultCount: Int) {
 
 @Composable
 private fun TimelineMonthSection(
-    month: String,
-    records: List<MemoryRecord>,
+    group: TimelineMonthGroup,
+    isLast: Boolean,
+    firstPhotosByRecordId: Map<Long, Photo>,
     onRecordClick: (Long) -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .background(WildernessWildflower, RoundedCornerShape(13.dp))
-            )
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height((records.size * 142).dp)
-                    .background(WildernessTeal.copy(alpha = 0.18f), RoundedCornerShape(2.dp))
-            )
-        }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        MonthRail(
+            month = group.monthNumber,
+            year = group.year,
+            isLast = isLast,
+            height = (group.records.size * 172).coerceAtLeast(172).dp
+        )
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = month,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Black,
-                color = WildernessTeal
-            )
-            records.forEach { record ->
+            group.records.forEach { record ->
                 TimelineRecordCard(
                     record = record,
+                    photo = firstPhotosByRecordId[record.id],
                     onClick = { onRecordClick(record.id) }
                 )
             }
@@ -234,34 +240,131 @@ private fun TimelineMonthSection(
 }
 
 @Composable
-private fun TimelineRecordCard(record: MemoryRecord, onClick: () -> Unit) {
+private fun MonthRail(month: String, year: String, isLast: Boolean, height: androidx.compose.ui.unit.Dp) {
+    Row(
+        modifier = Modifier.width(64.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "${month}月", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+            Text(text = year, style = MaterialTheme.typography.bodySmall, color = WildernessTeal.copy(alpha = 0.58f))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .size(18.dp)
+                    .background(WildernessWildflower, RoundedCornerShape(9.dp))
+            )
+            if (!isLast) {
+                Box(
+                    modifier = Modifier
+                        .height(height)
+                        .width(2.dp)
+                        .background(WildernessMeadow.copy(alpha = 0.85f), RoundedCornerShape(1.dp))
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .height(154.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = WildernessPaper)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = record.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black,
-                color = WildernessTeal
+            TimelinePhoto(photo = photo)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = record.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        color = WildernessTeal,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(imageVector = Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.54f), modifier = Modifier.size(20.dp))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Outlined.LocationOn, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+                    Text(
+                        text = record.locationName ?: "未填写地点",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WildernessTeal.copy(alpha = 0.66f)
+                    )
+                }
+                Text(
+                    text = record.content.toTimelineSummary(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WildernessTeal.copy(alpha = 0.68f)
+                )
+                MoodChip(record.mood ?: "平静")
+            }
+            Icon(
+                imageVector = Icons.Outlined.LocationOn,
+                contentDescription = null,
+                tint = WildernessTeal.copy(alpha = 0.65f),
+                modifier = Modifier
+                    .align(Alignment.Bottom)
+                    .offset(x = 2.dp)
+                    .size(24.dp)
             )
-            Text(
-                text = listOfNotNull(record.locationName, record.recordTime.formatDate()).joinToString(" | "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = WildernessTeal.copy(alpha = 0.72f)
-            )
-            Text(
-                text = record.content.toTimelineSummary(),
-                style = MaterialTheme.typography.bodyLarge,
-                color = WildernessTeal.copy(alpha = 0.7f)
-            )
+        }
+    }
+}
+
+@Composable
+private fun TimelinePhoto(photo: Photo?) {
+    if (photo == null) {
+        Image(
+            painter = painterResource(id = R.drawable.wilderness_home_hero),
+            contentDescription = "默认照片",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(width = 100.dp, height = 130.dp)
+                .clip(RoundedCornerShape(14.dp))
+        )
+    } else {
+        AsyncImage(
+            model = photo.displayUri,
+            contentDescription = "记录照片",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(width = 100.dp, height = 130.dp)
+                .clip(RoundedCornerShape(14.dp))
+        )
+    }
+}
+
+@Composable
+private fun MoodChip(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(WildernessWildflower.copy(alpha = 0.38f))
+            .padding(horizontal = 9.dp, vertical = 4.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Outlined.SentimentSatisfied, contentDescription = null, tint = WildernessWildflower, modifier = Modifier.size(14.dp))
+            Text(text = text, style = MaterialTheme.typography.labelSmall, color = WildernessTeal)
         }
     }
 }
@@ -269,11 +372,11 @@ private fun TimelineRecordCard(record: MemoryRecord, onClick: () -> Unit) {
 @Composable
 private fun EmptyTrail(text: String) {
     Card(
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = WildernessPaper)
     ) {
         Column(
-            modifier = Modifier.padding(22.dp),
+            modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(text = "这里还很安静", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
@@ -282,31 +385,16 @@ private fun EmptyTrail(text: String) {
     }
 }
 
-@Composable
-private fun TagColorDot(color: String?) {
-    Box(
-        modifier = Modifier
-            .size(10.dp)
-            .background(color.toComposeColor(), RoundedCornerShape(5.dp))
-    )
-}
-
-private fun String?.toComposeColor(): Color {
-    return this?.let { value ->
-        runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrNull()
-    } ?: Color(0xFF8A8F98)
-}
-
-private fun String.toTimelineSummary(maxLength: Int = 62): String {
+private fun String.toTimelineSummary(maxLength: Int = 34): String {
     val normalized = trim().replace(Regex("\\s+"), " ")
     if (normalized.isBlank()) return "暂无正文"
     return if (normalized.length <= maxLength) normalized else "${normalized.take(maxLength)}..."
 }
 
-private fun Long.formatMonth(): String {
+private fun Long.monthKey(): String {
     return Instant.ofEpochMilli(this)
         .atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("yyyy 年 M 月"))
+        .format(DateTimeFormatter.ofPattern("yyyy-MM"))
 }
 
 private fun TimelineUiState.emptyStateText(): String {
