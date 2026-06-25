@@ -92,6 +92,7 @@ fun SettingsRoute(
     var showMapPanel by remember { mutableStateOf(false) }
     var showPreferencePanel by remember { mutableStateOf(false) }
     var showAccountPanel by remember { mutableStateOf(false) }
+    var showPrivacyPanel by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) viewModel.writeExport(uri) else viewModel.onExportLaunchHandled()
@@ -169,6 +170,13 @@ fun SettingsRoute(
                 title = "账号与安全",
                 subtitle = "邮箱验证、密码登录与登录状态管理",
                 onClick = { showAccountPanel = true }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.PrivacyTip,
+                title = "隐私与权限说明",
+                subtitle = "查看照片、定位、网络和备份用途",
+                onClick = { showPrivacyPanel = true }
             )
             SettingsDivider()
             SettingsRow(
@@ -288,6 +296,10 @@ fun SettingsRoute(
             },
             onDismiss = { showAccountPanel = false }
         )
+    }
+
+    if (showPrivacyPanel) {
+        PrivacyPermissionDialog(onDismiss = { showPrivacyPanel = false })
     }
 
     uiState.importPreview?.let { preview ->
@@ -530,6 +542,51 @@ private fun RecordPreferenceDialog(
             }
         }
     )
+}
+
+@Composable
+private fun PrivacyPermissionDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("隐私与权限说明") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PermissionItem(
+                    title = "照片与文件",
+                    body = "用于导入记录照片、生成缩略图、导出和恢复备份包。照片优先缓存在 App 私有目录。"
+                )
+                PermissionItem(
+                    title = "位置与地图",
+                    body = "用于地图选点、当前位置选择和点亮城市。只有你保存记录时，坐标才会进入本地数据库。"
+                )
+                PermissionItem(
+                    title = "网络",
+                    body = "用于 Firebase 邮箱登录、发送验证邮件、地图 SDK 加载地图服务，以及后续云同步。"
+                )
+                PermissionItem(
+                    title = "账号",
+                    body = "邮箱登录用于识别你的账号。当前记录仍以本地保存为主，后续云同步会再明确确认。"
+                )
+                PermissionItem(
+                    title = "本地优先",
+                    body = "开启本地优先时，岁迹不会自动上传个人记录。重要数据建议定期导出完整备份包。"
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("知道了")
+            }
+        }
+    )
+}
+
+@Composable
+private fun PermissionItem(title: String, body: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = WildernessTeal)
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = WildernessMuted)
+    }
 }
 
 @Composable
