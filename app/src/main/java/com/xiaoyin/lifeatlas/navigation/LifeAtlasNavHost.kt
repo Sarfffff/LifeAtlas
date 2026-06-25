@@ -72,6 +72,18 @@ fun LifeAtlasNavHost() {
         ) {
             composable(LifeAtlasDestination.Home.route) {
                 HomeRoute(
+                    onAddClick = {
+                        navController.navigate(LifeAtlasDestination.AddRecord.route)
+                    },
+                    onViewAllClick = {
+                        navController.navigate(LifeAtlasDestination.Timeline.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                     onRecordClick = { recordId ->
                         navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
                     }

@@ -1,5 +1,6 @@
 package com.xiaoyin.lifeatlas.feature.home
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -7,247 +8,361 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.LocalOffer
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.SentimentSatisfied
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.xiaoyin.lifeatlas.R
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
+import com.xiaoyin.lifeatlas.core.model.Photo
 import com.xiaoyin.lifeatlas.core.time.formatDate
+import com.xiaoyin.lifeatlas.core.ui.theme.WildernessCoral
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeRoute(
+    onAddClick: () -> Unit,
+    onViewAllClick: () -> Unit,
     onRecordClick: (Long) -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val carouselPhotos = uiState.recentRecords
+        .mapNotNull { record -> uiState.firstPhotosByRecordId[record.id] }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 22.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(horizontal = 16.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        HomeHero()
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            StatTile("记录", uiState.recordCount.toString(), WildernessMeadow, Modifier.weight(1f))
-            StatTile("照片", uiState.photoCount.toString(), WildernessSky, Modifier.weight(1f))
-            StatTile("标签", uiState.tagCount.toString(), WildernessWildflower, Modifier.weight(1f))
-        }
-
-        InfoPanel(
-            title = "旷野坐标",
-            body = "已有 ${uiState.locatedRecordCount} 条记录写下坐标，地图会把它们连成你的来路。"
+        HomeHeader()
+        PhotoCarousel(photos = carouselPhotos)
+        StatsRow(
+            recordCount = uiState.recordCount,
+            locationCount = uiState.locatedRecordCount,
+            photoCount = uiState.photoCount,
+            tagCount = uiState.tagCount
         )
-
-        RecentRecordsPanel(
+        NewMemoryButton(onClick = onAddClick)
+        RecentMemories(
             records = uiState.recentRecords,
-            onRecordClick = onRecordClick
+            firstPhotosByRecordId = uiState.firstPhotosByRecordId,
+            onRecordClick = onRecordClick,
+            onViewAllClick = onViewAllClick
         )
+        Spacer(modifier = Modifier.height(6.dp))
     }
 }
 
 @Composable
-private fun HomeHero() {
-    Card(
+private fun HomeHeader() {
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(34.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(270.dp)
-                .clip(RoundedCornerShape(34.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.wilderness_home_hero),
-                contentDescription = "旷野风景",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                WildernessPaper.copy(alpha = 0.92f),
-                                WildernessPaper.copy(alpha = 0.58f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 26.dp, top = 24.dp, end = 130.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "岁迹",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Black,
-                    color = WildernessTeal
-                )
-                Text(
-                    text = "人生是旷野，今天从哪里出发？",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    color = WildernessTeal
-                )
-                Text(
-                    text = "把走过的地方、拍过的照片和写下的文字，连成一条可回看的生命小径。",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = WildernessTeal.copy(alpha = 0.78f)
-                )
-            }
-            Image(
-                painter = painterResource(id = R.drawable.ic_launcher_mascot_text),
-                contentDescription = "岁迹吉祥物",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 22.dp, top = 44.dp)
-                    .size(138.dp)
-                    .clip(RoundedCornerShape(4.dp))
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 26.dp, bottom = 26.dp)
-                    .fillMaxWidth(0.48f)
-                    .height(18.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(WildernessTeal.copy(alpha = 0.18f))
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatTile(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier.height(92.dp),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.82f))
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = value,
-                style = MaterialTheme.typography.headlineMedium,
+                text = "岁迹",
+                style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Black,
                 color = WildernessTeal
             )
             Text(
-                text = title,
+                text = "人生是旷野，今天从哪里出发？",
                 style = MaterialTheme.typography.bodyLarge,
-                color = WildernessTeal.copy(alpha = 0.72f)
+                fontWeight = FontWeight.SemiBold,
+                color = WildernessTeal.copy(alpha = 0.78f)
             )
         }
+        Icon(
+            imageVector = Icons.Outlined.Notifications,
+            contentDescription = "通知",
+            tint = WildernessTeal,
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .size(30.dp)
+        )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun InfoPanel(title: String, body: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
-            Text(text = body, style = MaterialTheme.typography.bodyLarge, color = WildernessTeal.copy(alpha = 0.72f))
+private fun PhotoCarousel(photos: List<Photo>) {
+    val pageCount = if (photos.isEmpty()) 1 else photos.size
+    val pagerState = rememberPagerState(pageCount = { pageCount })
+
+    LaunchedEffect(pageCount) {
+        if (pageCount <= 1) return@LaunchedEffect
+        while (true) {
+            delay(3200)
+            pagerState.animateScrollToPage((pagerState.currentPage + 1) % pageCount)
         }
     }
-}
 
-@Composable
-private fun RecentRecordsPanel(records: List<MemoryRecord>, onRecordClick: (Long) -> Unit) {
-    Card(
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text(text = "最近的风景", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
-            if (records.isEmpty()) {
-                Text(
-                    text = "还没有留下第一段记忆。写下它，旷野就有了第一枚坐标。",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = WildernessTeal.copy(alpha = 0.72f)
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(186.dp)
+            .clip(RoundedCornerShape(22.dp))
+    ) { page ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (photos.isEmpty()) {
+                Image(
+                    painter = painterResource(id = R.drawable.wilderness_home_hero),
+                    contentDescription = "旷野照片",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
             } else {
-                records.forEach { record ->
-                    RecentRecordRow(record = record, onClick = { onRecordClick(record.id) })
-                }
+                AsyncImage(
+                    model = photos[page].displayUri,
+                    contentDescription = "记忆照片",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RecentRecordRow(record: MemoryRecord, onClick: () -> Unit) {
-    Column(
+private fun StatsRow(recordCount: Int, locationCount: Int, photoCount: Int, tagCount: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StatCard(Icons.Outlined.Article, "记录", recordCount.toString(), WildernessMeadow, Modifier.weight(1f))
+        StatCard(Icons.Outlined.Place, "地点", locationCount.toString(), WildernessMeadow, Modifier.weight(1f))
+        StatCard(Icons.Outlined.PhotoCamera, "照片", photoCount.toString(), WildernessSky, Modifier.weight(1f))
+        StatCard(Icons.Outlined.LocalOffer, "标签", tagCount.toString(), WildernessWildflower, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun StatCard(icon: ImageVector, label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.height(100.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(imageVector = icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
+                Text(text = label, style = MaterialTheme.typography.labelLarge, color = WildernessTeal.copy(alpha = 0.7f))
+            }
+            Text(text = value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = WildernessTeal)
+            Text(text = if (label == "照片") "张" else if (label == "地点") "个" else if (label == "标签") "个" else "条", style = MaterialTheme.typography.labelMedium, color = WildernessTeal.copy(alpha = 0.68f))
+        }
+    }
+}
+
+@Composable
+private fun NewMemoryButton(onClick: () -> Unit) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(WildernessWildflower.copy(alpha = 0.22f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .height(54.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(WildernessTeal)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Outlined.Edit, contentDescription = null, tint = WildernessPaper, modifier = Modifier.size(24.dp))
+            Text(
+                text = "写一段新记忆",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Black,
+                color = WildernessPaper
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecentMemories(
+    records: List<MemoryRecord>,
+    firstPhotosByRecordId: Map<Long, Photo>,
+    onRecordClick: (Long) -> Unit,
+    onViewAllClick: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "最近记忆", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+            Text(
+                text = "查看全部 >",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = WildernessTeal.copy(alpha = 0.56f),
+                modifier = Modifier.clickable(onClick = onViewAllClick)
+            )
+        }
+        if (records.isEmpty()) {
+            EmptyRecentCard()
+        } else {
+            records.take(2).forEach { record ->
+                RecentMemoryCard(
+                    record = record,
+                    photo = firstPhotosByRecordId[record.id],
+                    onClick = { onRecordClick(record.id) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentMemoryCard(record: MemoryRecord, photo: Photo?, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(124.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (photo == null) {
+                Image(
+                    painter = painterResource(id = R.drawable.wilderness_home_hero),
+                    contentDescription = "默认风景",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(width = 112.dp, height = 100.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                )
+            } else {
+                AsyncImage(
+                    model = photo.displayUri,
+                    contentDescription = "记录照片",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(width = 112.dp, height = 100.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = record.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Black,
+                        color = WildernessTeal,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(imageVector = Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.54f), modifier = Modifier.size(20.dp))
+                }
+                Text(
+                    text = record.locationName ?: "未填写地点",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WildernessTeal.copy(alpha = 0.62f)
+                )
+                Text(
+                    text = record.recordTime.formatDate(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WildernessTeal.copy(alpha = 0.58f)
+                )
+                MoodChip(record.mood ?: "开心")
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoodChip(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(WildernessWildflower.copy(alpha = 0.38f))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Outlined.SentimentSatisfied, contentDescription = null, tint = WildernessWildflower, modifier = Modifier.size(14.dp))
+            Text(text = text, style = MaterialTheme.typography.labelSmall, color = WildernessTeal)
+        }
+    }
+}
+
+@Composable
+private fun EmptyRecentCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper)
     ) {
         Text(
-            text = record.title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Black,
-            color = WildernessTeal
-        )
-        Text(
-            text = listOfNotNull(record.locationName, record.recordTime.formatDate()).joinToString(" | "),
-            style = MaterialTheme.typography.bodyMedium,
-            color = WildernessTeal.copy(alpha = 0.68f)
+            text = "还没有留下第一段记忆。写下它，旷野就有了第一枚坐标。",
+            modifier = Modifier.padding(18.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = WildernessTeal.copy(alpha = 0.72f)
         )
     }
 }
