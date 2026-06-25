@@ -25,6 +25,7 @@ data class AuthSession(
     val isLoggedIn: Boolean = false,
     val email: String? = null,
     val emailVerified: Boolean = false,
+    val authNotice: String? = null,
     val lastLoginAt: Long? = null,
     val skippedLogin: Boolean = false,
     val failedLoginCount: Int = 0,
@@ -45,6 +46,7 @@ class AuthRepository(context: Context) {
             isLoggedIn = backendAccessToken != null || firebaseUser != null || (preferences[IS_LOGGED_IN] ?: false),
             email = preferences[EMAIL] ?: firebaseUser?.email,
             emailVerified = preferences[EMAIL_VERIFIED] ?: firebaseUser?.isEmailVerified ?: false,
+            authNotice = preferences[AUTH_NOTICE],
             lastLoginAt = preferences[LAST_LOGIN_AT],
             skippedLogin = preferences[SKIPPED_LOGIN] ?: false,
             failedLoginCount = preferences[FAILED_LOGIN_COUNT]?.toInt() ?: 0,
@@ -90,7 +92,11 @@ class AuthRepository(context: Context) {
     suspend fun sendEmailVerification() {
         if (isBackendConfigured()) {
             val token = dataStore.data.first()[BACKEND_ACCESS_TOKEN] ?: error("请先登录账号")
-            requireNotNull(authApiClient) { "国内后端地址未配置" }.requestEmailVerification(token)
+            val result = requireNotNull(authApiClient) { "国内后端地址未配置" }.requestEmailVerification(token)
+            dataStore.edit { preferences ->
+                preferences[AUTH_NOTICE] = result.message
+            }
+            require(result.emailSent) { result.message }
             return
         }
 
@@ -109,8 +115,11 @@ class AuthRepository(context: Context) {
         val normalizedEmail = email.normalizeEmail()
         validateEmail(normalizedEmail)
         when {
-            isBackendConfigured() -> requireNotNull(authApiClient) { "国内后端地址未配置" }
-                .requestPasswordReset(normalizedEmail)
+            isBackendConfigured() -> {
+                val result = requireNotNull(authApiClient) { "国内后端地址未配置" }
+                    .requestPasswordReset(normalizedEmail)
+                require(result.emailSent) { result.message }
+            }
             shouldUseFirebase() -> firebaseAuthOrError().sendPasswordResetEmail(normalizedEmail).await()
             else -> Unit
         }
@@ -280,6 +289,11 @@ class AuthRepository(context: Context) {
     private fun saveBackendSession(preferences: MutablePreferences, session: AuthApiSession) {
         preferences[EMAIL] = session.email.normalizeEmail()
         preferences[EMAIL_VERIFIED] = session.emailVerified
+        if (session.notice.isNullOrBlank()) {
+            preferences.remove(AUTH_NOTICE)
+        } else {
+            preferences[AUTH_NOTICE] = session.notice
+        }
         preferences[BACKEND_ACCESS_TOKEN] = session.accessToken
         if (session.refreshToken.isNullOrBlank()) {
             preferences.remove(BACKEND_REFRESH_TOKEN)
@@ -301,6 +315,7 @@ class AuthRepository(context: Context) {
     ) {
         preferences[EMAIL] = email.normalizeEmail()
         preferences[EMAIL_VERIFIED] = emailVerified
+        preferences.remove(AUTH_NOTICE)
         preferences[IS_LOGGED_IN] = true
         preferences[SKIPPED_LOGIN] = false
         preferences[LAST_LOGIN_AT] = System.currentTimeMillis()
@@ -410,6 +425,7 @@ class AuthRepository(context: Context) {
         val LAST_VERIFICATION_EMAIL_SENT = longPreferencesKey("last_verification_email_sent")
         val BACKEND_ACCESS_TOKEN = stringPreferencesKey("backend_access_token")
         val BACKEND_REFRESH_TOKEN = stringPreferencesKey("backend_refresh_token")
+        val AUTH_NOTICE = stringPreferencesKey("auth_notice")
 
         const val MAX_LOGIN_FAILURES = 5L
         const val LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000L

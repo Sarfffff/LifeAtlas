@@ -46,9 +46,9 @@ app.post("/api/auth/register", async (request, response) => {
     };
     store.users[email] = user;
     await writeStore(store);
-    await sendVerificationEmail(user);
+    const mailResult = await trySendVerificationEmail(user);
 
-    response.json(toSession(user));
+    response.json(toSession(user, mailResult));
   } catch (error) {
     sendError(response, error);
   }
@@ -76,8 +76,12 @@ app.post("/api/auth/email/verification/request", async (request, response) => {
     const store = await readStore();
     store.users[user.email] = user;
     await writeStore(store);
-    await sendVerificationEmail(user);
-    response.json({ ok: true });
+    const mailResult = await trySendVerificationEmail(user);
+    response.json({
+      ok: true,
+      emailSent: mailResult.sent,
+      message: mailResult.message
+    });
   } catch (error) {
     sendError(response, error);
   }
@@ -108,9 +112,14 @@ app.post("/api/auth/password/reset/request", async (request, response) => {
       user.resetToken = randomToken(24);
       user.updatedAt = Date.now();
       await writeStore(store);
-      await sendPasswordResetEmail(user);
+      const mailResult = await trySendPasswordResetEmail(user);
+      return response.json({
+        ok: true,
+        emailSent: mailResult.sent,
+        message: mailResult.message
+      });
     }
-    response.json({ ok: true });
+    response.json({ ok: true, emailSent: true, message: "如果邮箱已注册，重置邮件会发送到该邮箱" });
   } catch (error) {
     sendError(response, error);
   }
@@ -135,13 +144,47 @@ async function requireUser(request) {
   return user;
 }
 
-function toSession(user) {
+function toSession(user, mailResult = null) {
   return {
     accessToken: jwt.sign({ email: user.email }, jwtSecret, { expiresIn: "7d" }),
     refreshToken: jwt.sign({ email: user.email, type: "refresh" }, jwtSecret, { expiresIn: "30d" }),
     email: user.email,
-    emailVerified: Boolean(user.emailVerified)
+    emailVerified: Boolean(user.emailVerified),
+    verificationEmailSent: mailResult?.sent ?? null,
+    notice: mailResult?.message ?? null
   };
+}
+
+async function trySendVerificationEmail(user) {
+  return trySendMail(() => sendVerificationEmail(user), "验证邮件已发送，请检查收件箱或垃圾邮件");
+}
+
+async function trySendPasswordResetEmail(user) {
+  return trySendMail(() => sendPasswordResetEmail(user), "密码重置邮件已发送，请检查收件箱或垃圾邮件");
+}
+
+async function trySendMail(operation, successMessage) {
+  try {
+    ensureSmtpConfigured();
+    await operation();
+    return { sent: true, message: successMessage };
+  } catch (error) {
+    console.error("Mail delivery failed:", error.message);
+    return {
+      sent: false,
+      message: "账号操作已完成，但邮件服务暂未配置成功。请稍后在账号与安全页重新发送邮件。"
+    };
+  }
+}
+
+function ensureSmtpConfigured() {
+  const required = ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"];
+  const missing = required.filter((key) => !process.env[key] || process.env[key].startsWith("replace-with"));
+  if (missing.length > 0) {
+    const error = new Error(`SMTP is not configured: ${missing.join(", ")}`);
+    error.status = 503;
+    throw error;
+  }
 }
 
 async function sendVerificationEmail(user) {

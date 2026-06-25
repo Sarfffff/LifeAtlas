@@ -38,16 +38,16 @@ class AuthApiClient(
         )
     }
 
-    suspend fun requestEmailVerification(accessToken: String) {
-        post<Unit>(
+    suspend fun requestEmailVerification(accessToken: String): AuthApiMailResult {
+        return post<AuthApiMailResult>(
             path = "/api/auth/email/verification/request",
             bodyText = "{}",
             bearerToken = accessToken
         )
     }
 
-    suspend fun requestPasswordReset(email: String) {
-        post<Unit>(
+    suspend fun requestPasswordReset(email: String): AuthApiMailResult {
+        return post<AuthApiMailResult>(
             path = "/api/auth/password/reset/request",
             bodyText = json.encodeToString(
                 AuthApiEmailRequest.serializer(),
@@ -112,7 +112,16 @@ data class AuthApiSession(
     @SerialName("accessToken") val accessToken: String,
     @SerialName("refreshToken") val refreshToken: String? = null,
     val email: String,
-    val emailVerified: Boolean = false
+    val emailVerified: Boolean = false,
+    val verificationEmailSent: Boolean? = null,
+    val notice: String? = null
+)
+
+@Serializable
+data class AuthApiMailResult(
+    val ok: Boolean = true,
+    val emailSent: Boolean = false,
+    val message: String = "邮件服务暂不可用，请稍后重试"
 )
 
 @Serializable

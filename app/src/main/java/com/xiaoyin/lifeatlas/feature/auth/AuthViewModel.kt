@@ -88,13 +88,16 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     authRepository.login(state.email, state.password)
                 }
             }.onSuccess {
+                val authNotice = authRepository.session.first().authNotice
                 formState.update {
                     it.copy(
                         isLoading = false,
                         password = "",
                         confirmPassword = "",
                         message = if (state.isRegisterMode) {
-                            if (authRepository.isBackendConfigured()) {
+                            if (!authNotice.isNullOrBlank()) {
+                                "注册成功。$authNotice"
+                            } else if (authRepository.isBackendConfigured()) {
                                 "注册成功。验证邮件将由国内后端通过阿里云邮件服务发送，请检查邮箱。"
                             } else if (authRepository.isFirebaseActive()) {
                                 "注册成功。系统已尝试发送验证邮件，请检查邮箱；如果没收到，可登录后重新发送。"
@@ -138,7 +141,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             runCatching { authRepository.sendEmailVerification() }
                 .onSuccess {
-                    formState.update { it.copy(message = "验证邮件已发送，请检查邮箱收件箱或垃圾邮件。", error = null) }
+                    val authNotice = authRepository.session.first().authNotice
+                    formState.update {
+                        it.copy(
+                            message = authNotice ?: "验证邮件已发送，请检查邮箱收件箱或垃圾邮件。",
+                            error = null
+                        )
+                    }
                 }
                 .onFailure { error ->
                     formState.update { it.copy(error = error.message ?: "验证邮件发送失败", message = null) }
