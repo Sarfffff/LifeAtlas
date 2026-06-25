@@ -17,10 +17,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -109,7 +109,7 @@ fun AuthRoute(
             Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("当前阶段说明", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
                 Text(
-                    "现在先提供本地账号体验：邮箱、密码哈希、登录状态会持久化保存在本机。接入 Firebase 后，会替换为真实邮箱验证、忘记密码和云端账号。",
+                    "现在先提供本地账号体验：邮箱、密码哈希、登录状态会持久化保存在本机。已加入登录失败冷却、注册频率限制和本机账号防覆盖。接入 Firebase 后，会替换为真实邮箱验证、忘记密码和云端账号。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = WildernessMuted
                 )
@@ -158,6 +158,8 @@ private fun AuthFormCard(
                     )
                 }
             }
+
+            SecurityStatusText(uiState = uiState)
 
             OutlinedTextField(
                 value = uiState.email,
@@ -219,6 +221,33 @@ private fun AuthFormCard(
 }
 
 @Composable
+private fun SecurityStatusText(uiState: AuthUiState) {
+    val lockedUntil = uiState.session.loginLockedUntil
+    val now = System.currentTimeMillis()
+    val text = when {
+        lockedUntil != null && lockedUntil > now -> {
+            val minutes = ((lockedUntil - now) / 60_000L).coerceAtLeast(1L)
+            "账号保护中：登录尝试过于频繁，请约 $minutes 分钟后再试。"
+        }
+        uiState.session.failedLoginCount > 0 -> {
+            "安全提醒：已连续失败 ${uiState.session.failedLoginCount} 次，连续失败 5 次会临时冷却。"
+        }
+        uiState.isRegisterMode -> {
+            "安全策略：每小时最多创建 3 次本地账号，且不会覆盖已有账号。"
+        }
+        else -> {
+            "安全策略：密码会加盐哈希后保存在本机，不保存明文密码。"
+        }
+    }
+
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = WildernessMuted
+    )
+}
+
+@Composable
 private fun LoggedInCard(
     email: String,
     verified: Boolean,
@@ -253,7 +282,7 @@ private fun LoggedInCard(
                 Text("继续使用岁迹")
             }
             OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.Logout, contentDescription = null)
+                Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("退出登录")
             }

@@ -19,7 +19,9 @@ data class AuthSession(
     val email: String? = null,
     val emailVerified: Boolean = false,
     val lastLoginAt: Long? = null,
-    val skippedLogin: Boolean = false
+    val skippedLogin: Boolean = false,
+    val failedLoginCount: Int = 0,
+    val loginLockedUntil: Long? = null
 )
 
 class AuthRepository(context: Context) {
@@ -31,7 +33,9 @@ class AuthRepository(context: Context) {
             email = preferences[EMAIL],
             emailVerified = preferences[EMAIL_VERIFIED] ?: false,
             lastLoginAt = preferences[LAST_LOGIN_AT],
-            skippedLogin = preferences[SKIPPED_LOGIN] ?: false
+            skippedLogin = preferences[SKIPPED_LOGIN] ?: false,
+            failedLoginCount = preferences[FAILED_LOGIN_COUNT]?.toInt() ?: 0,
+            loginLockedUntil = preferences[LOGIN_LOCKED_UNTIL]
         )
     }
 
@@ -41,8 +45,13 @@ class AuthRepository(context: Context) {
         validatePassword(password)
         require(password == confirmPassword) { "两次输入的密码不一致" }
 
+        val snapshot = dataStore.data.first()
+        enforceRegisterRateLimit(snapshot[REGISTER_WINDOW_START], snapshot[REGISTER_COUNT])
+        require(snapshot[EMAIL].isNullOrBlank()) { "本机已存在账号，请先登录或在设置中清除本地账号" }
+
         val salt = createSalt()
         dataStore.edit { preferences ->
+            recordRegisterAttempt(preferences)
             preferences[EMAIL] = normalizedEmail
             preferences[PASSWORD_SALT] = salt
             preferences[PASSWORD_HASH] = hashPassword(password, salt)
@@ -50,6 +59,9 @@ class AuthRepository(context: Context) {
             preferences[IS_LOGGED_IN] = true
             preferences[SKIPPED_LOGIN] = false
             preferences[LAST_LOGIN_AT] = System.currentTimeMillis()
+            preferences[FAILED_LOGIN_COUNT] = 0L
+            preferences.remove(LOGIN_LOCKED_UNTIL)
+            preferences.remove(LAST_FAILED_LOGIN_AT)
         }
     }
 
@@ -57,16 +69,22 @@ class AuthRepository(context: Context) {
         val normalizedEmail = email.normalizeEmail()
         validateEmail(normalizedEmail)
         val snapshot = dataStore.data.first()
+        enforceLoginLock(snapshot[LOGIN_LOCKED_UNTIL])
         val storedEmail = snapshot[EMAIL] ?: error("当前还没有注册账号")
         val salt = snapshot[PASSWORD_SALT] ?: error("账号信息不完整，请重新注册")
         val storedHash = snapshot[PASSWORD_HASH] ?: error("账号信息不完整，请重新注册")
-        require(storedEmail == normalizedEmail) { "邮箱与本机已注册账号不一致" }
-        require(hashPassword(password, salt) == storedHash) { "密码错误" }
+        if (storedEmail != normalizedEmail || hashPassword(password, salt) != storedHash) {
+            recordFailedLogin()
+            error("邮箱或密码错误")
+        }
 
         dataStore.edit { preferences ->
             preferences[IS_LOGGED_IN] = true
             preferences[SKIPPED_LOGIN] = false
             preferences[LAST_LOGIN_AT] = System.currentTimeMillis()
+            preferences[FAILED_LOGIN_COUNT] = 0L
+            preferences.remove(LOGIN_LOCKED_UNTIL)
+            preferences.remove(LAST_FAILED_LOGIN_AT)
         }
     }
 
@@ -109,6 +127,48 @@ class AuthRepository(context: Context) {
         }
     }
 
+    private fun enforceLoginLock(lockedUntil: Long?) {
+        val now = System.currentTimeMillis()
+        if (lockedUntil != null && lockedUntil > now) {
+            val minutes = ((lockedUntil - now) / 60_000L).coerceAtLeast(1L)
+            error("登录尝试过于频繁，请约 $minutes 分钟后再试")
+        }
+    }
+
+    private fun enforceRegisterRateLimit(windowStart: Long?, count: Long?) {
+        val now = System.currentTimeMillis()
+        val isSameWindow = windowStart != null && now - windowStart < REGISTER_WINDOW_MS
+        if (isSameWindow && (count ?: 0L) >= MAX_REGISTER_ATTEMPTS_PER_WINDOW) {
+            error("注册操作过于频繁，请稍后再试")
+        }
+    }
+
+    private suspend fun recordFailedLogin() {
+        dataStore.edit { preferences ->
+            val now = System.currentTimeMillis()
+            val previousFailedAt = preferences[LAST_FAILED_LOGIN_AT] ?: 0L
+            val previousCount = preferences[FAILED_LOGIN_COUNT] ?: 0L
+            val count = if (now - previousFailedAt > LOGIN_FAILURE_WINDOW_MS) 1L else previousCount + 1L
+            preferences[FAILED_LOGIN_COUNT] = count
+            preferences[LAST_FAILED_LOGIN_AT] = now
+            if (count >= MAX_LOGIN_FAILURES) {
+                preferences[LOGIN_LOCKED_UNTIL] = now + LOGIN_LOCK_MS
+            }
+        }
+    }
+
+    private fun recordRegisterAttempt(preferences: androidx.datastore.preferences.core.MutablePreferences) {
+        val now = System.currentTimeMillis()
+        val windowStart = preferences[REGISTER_WINDOW_START] ?: now
+        val isSameWindow = now - windowStart < REGISTER_WINDOW_MS
+        if (isSameWindow) {
+            preferences[REGISTER_COUNT] = (preferences[REGISTER_COUNT] ?: 0L) + 1L
+        } else {
+            preferences[REGISTER_WINDOW_START] = now
+            preferences[REGISTER_COUNT] = 1L
+        }
+    }
+
     private fun String.normalizeEmail(): String = trim().lowercase()
 
     private fun createSalt(): String {
@@ -132,5 +192,16 @@ class AuthRepository(context: Context) {
         val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
         val SKIPPED_LOGIN = booleanPreferencesKey("skipped_login")
         val LAST_LOGIN_AT = longPreferencesKey("last_login_at")
+        val FAILED_LOGIN_COUNT = longPreferencesKey("failed_login_count")
+        val LAST_FAILED_LOGIN_AT = longPreferencesKey("last_failed_login_at")
+        val LOGIN_LOCKED_UNTIL = longPreferencesKey("login_locked_until")
+        val REGISTER_WINDOW_START = longPreferencesKey("register_window_start")
+        val REGISTER_COUNT = longPreferencesKey("register_count")
+
+        const val MAX_LOGIN_FAILURES = 5L
+        const val LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000L
+        const val LOGIN_LOCK_MS = 10 * 60 * 1000L
+        const val REGISTER_WINDOW_MS = 60 * 60 * 1000L
+        const val MAX_REGISTER_ATTEMPTS_PER_WINDOW = 3L
     }
 }
