@@ -78,7 +78,9 @@ fun AuthRoute(
             LoggedInCard(
                 email = uiState.session.email.orEmpty(),
                 verified = uiState.session.emailVerified,
-                onVerify = viewModel::markEmailVerifiedForLocalPreview,
+                firebaseConfigured = uiState.firebaseConfigured,
+                onSendVerification = viewModel::sendVerificationEmail,
+                onRefreshVerification = viewModel::refreshEmailVerification,
                 onLogout = viewModel::logout,
                 onContinue = onContinue
             )
@@ -90,7 +92,7 @@ fun AuthRoute(
                 onConfirmPasswordChange = viewModel::onConfirmPasswordChange,
                 onSubmit = { viewModel.submit(onSuccess = onContinue) },
                 onSwitchMode = viewModel::switchMode,
-                onForgotPassword = viewModel::sendPasswordResetPlaceholder,
+                onForgotPassword = viewModel::sendPasswordResetEmail,
                 onSkip = { viewModel.skipLogin(onSkipped = onContinue) }
             )
         }
@@ -109,7 +111,11 @@ fun AuthRoute(
             Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("当前阶段说明", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
                 Text(
-                    "现在先提供本地账号体验：邮箱、密码哈希、登录状态会持久化保存在本机。已加入登录失败冷却、注册频率限制和本机账号防覆盖。接入 Firebase 后，会替换为真实邮箱验证、忘记密码和云端账号。",
+                    if (uiState.firebaseConfigured) {
+                        "Firebase 已配置：注册后会发送真实邮箱验证邮件，忘记密码会发送重置邮件。QQ 邮箱可以作为收件邮箱使用。"
+                    } else {
+                        "Firebase 尚未配置：当前仍是本地账号体验。把 google-services.json 放到 app 目录并启用邮箱/密码登录后，会发送真实邮箱验证和重置密码邮件。"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = WildernessMuted
                 )
@@ -251,7 +257,9 @@ private fun SecurityStatusText(uiState: AuthUiState) {
 private fun LoggedInCard(
     email: String,
     verified: Boolean,
-    onVerify: () -> Unit,
+    firebaseConfigured: Boolean,
+    onSendVerification: () -> Unit,
+    onRefreshVerification: () -> Unit,
     onLogout: () -> Unit,
     onContinue: () -> Unit
 ) {
@@ -269,13 +277,26 @@ private fun LoggedInCard(
             )
             Text(email, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
             Text(
-                text = if (verified) "邮箱已验证" else "邮箱尚未验证。当前为本地预览验证，后续接入真实邮件验证。",
+                text = when {
+                    verified -> "邮箱已验证"
+                    firebaseConfigured -> "邮箱尚未验证。请打开邮箱中的验证链接，然后回到这里刷新状态。"
+                    else -> "邮箱尚未验证。当前为本地预览验证，后续接入真实邮件验证。"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = WildernessMuted
             )
             if (!verified) {
-                OutlinedButton(onClick = onVerify, modifier = Modifier.fillMaxWidth()) {
-                    Text("本地标记邮箱已验证")
+                if (firebaseConfigured) {
+                    OutlinedButton(onClick = onSendVerification, modifier = Modifier.fillMaxWidth()) {
+                        Text("重新发送验证邮件")
+                    }
+                    OutlinedButton(onClick = onRefreshVerification, modifier = Modifier.fillMaxWidth()) {
+                        Text("我已验证，刷新状态")
+                    }
+                } else {
+                    OutlinedButton(onClick = onRefreshVerification, modifier = Modifier.fillMaxWidth()) {
+                        Text("本地标记邮箱已验证")
+                    }
                 }
             }
             Button(onClick = onContinue, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal)) {

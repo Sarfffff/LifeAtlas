@@ -18,6 +18,7 @@ data class AuthUiState(
     val confirmPassword: String = "",
     val isRegisterMode: Boolean = false,
     val isLoading: Boolean = false,
+    val firebaseConfigured: Boolean = false,
     val message: String? = null,
     val error: String? = null
 )
@@ -29,7 +30,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<AuthUiState> = MutableStateFlow(AuthUiState()).also { target ->
         viewModelScope.launch {
             combine(authRepository.session, formState) { session, form ->
-                form.copy(session = session)
+                form.copy(
+                    session = session,
+                    firebaseConfigured = authRepository.isFirebaseConfigured()
+                )
             }.collect { target.value = it }
         }
     }
@@ -75,7 +79,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         password = "",
                         confirmPassword = "",
                         message = if (state.isRegisterMode) {
-                            "注册成功。当前是本地账号，接入 Firebase 后会发送真实邮箱验证邮件。"
+                            if (authRepository.isFirebaseConfigured()) {
+                                "注册成功，验证邮件已发送。请打开邮箱完成验证。"
+                            } else {
+                                "注册成功。当前是本地账号，接入 Firebase 后会发送真实邮箱验证邮件。"
+                            }
                         } else {
                             "登录成功"
                         }
@@ -88,11 +96,20 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun markEmailVerifiedForLocalPreview() {
+    fun refreshEmailVerification() {
         viewModelScope.launch {
             runCatching { authRepository.markEmailVerifiedForLocalPreview() }
                 .onSuccess {
-                    formState.update { it.copy(message = "已标记为邮箱已验证。本功能后续会替换为真实邮件验证。", error = null) }
+                    formState.update {
+                        it.copy(
+                            message = if (authRepository.isFirebaseConfigured()) {
+                                "邮箱验证状态已刷新。"
+                            } else {
+                                "已标记为邮箱已验证。本功能后续会替换为真实邮件验证。"
+                            },
+                            error = null
+                        )
+                    }
                 }
                 .onFailure { error ->
                     formState.update { it.copy(error = error.message ?: "邮箱验证失败", message = null) }
@@ -100,17 +117,42 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun sendPasswordResetPlaceholder() {
+    fun sendVerificationEmail() {
+        viewModelScope.launch {
+            runCatching { authRepository.sendEmailVerification() }
+                .onSuccess {
+                    formState.update { it.copy(message = "验证邮件已发送，请检查邮箱收件箱或垃圾邮件。", error = null) }
+                }
+                .onFailure { error ->
+                    formState.update { it.copy(error = error.message ?: "验证邮件发送失败", message = null) }
+                }
+        }
+    }
+
+    fun sendPasswordResetEmail() {
         val email = formState.value.email.trim()
-        formState.update {
-            it.copy(
-                message = if (email.isBlank()) {
-                    "请先输入邮箱。接入 Firebase 后会向该邮箱发送重置密码邮件。"
-                } else {
-                    "已记录重置请求。接入 Firebase 后会向 $email 发送重置密码邮件。"
-                },
-                error = null
-            )
+        viewModelScope.launch {
+            if (!authRepository.isFirebaseConfigured()) {
+                formState.update {
+                    it.copy(
+                        message = if (email.isBlank()) {
+                            "请先输入邮箱。配置 Firebase 后会向该邮箱发送重置密码邮件。"
+                        } else {
+                            "已记录重置请求。配置 Firebase 后会向 $email 发送重置密码邮件。"
+                        },
+                        error = null
+                    )
+                }
+                return@launch
+            }
+
+            runCatching { authRepository.sendPasswordResetEmail(email) }
+                .onSuccess {
+                    formState.update { it.copy(message = "密码重置邮件已发送，请检查邮箱收件箱或垃圾邮件。", error = null) }
+                }
+                .onFailure { error ->
+                    formState.update { it.copy(error = error.message ?: "密码重置邮件发送失败", message = null) }
+                }
         }
     }
 

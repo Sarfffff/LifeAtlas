@@ -4,10 +4,14 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
 import java.security.MessageDigest
 import java.security.SecureRandom
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -25,7 +29,8 @@ data class AuthSession(
 )
 
 class AuthRepository(context: Context) {
-    private val dataStore = context.applicationContext.authDataStore
+    private val appContext = context.applicationContext
+    private val dataStore = appContext.authDataStore
 
     val session: Flow<AuthSession> = dataStore.data.map { preferences ->
         AuthSession(
@@ -44,6 +49,11 @@ class AuthRepository(context: Context) {
         validateEmail(normalizedEmail)
         validatePassword(password)
         require(password == confirmPassword) { "两次输入的密码不一致" }
+
+        if (isFirebaseConfigured()) {
+            registerWithFirebase(normalizedEmail, password)
+            return
+        }
 
         val snapshot = dataStore.data.first()
         enforceRegisterRateLimit(snapshot[REGISTER_WINDOW_START], snapshot[REGISTER_COUNT])
@@ -68,6 +78,12 @@ class AuthRepository(context: Context) {
     suspend fun login(email: String, password: String) {
         val normalizedEmail = email.normalizeEmail()
         validateEmail(normalizedEmail)
+
+        if (isFirebaseConfigured()) {
+            loginWithFirebase(normalizedEmail, password)
+            return
+        }
+
         val snapshot = dataStore.data.first()
         enforceLoginLock(snapshot[LOGIN_LOCKED_UNTIL])
         val storedEmail = snapshot[EMAIL] ?: error("当前还没有注册账号")
@@ -89,10 +105,28 @@ class AuthRepository(context: Context) {
     }
 
     suspend fun markEmailVerifiedForLocalPreview() {
+        if (isFirebaseConfigured()) {
+            refreshFirebaseEmailVerification()
+            return
+        }
         dataStore.edit { preferences ->
             require(!preferences[EMAIL].isNullOrBlank()) { "请先注册或登录账号" }
             preferences[EMAIL_VERIFIED] = true
         }
+    }
+
+    suspend fun sendEmailVerification() {
+        val auth = firebaseAuthOrError()
+        val user = auth.currentUser ?: error("请先登录账号")
+        require(!user.isEmailVerified) { "邮箱已经验证" }
+        user.sendEmailVerification().await()
+    }
+
+    suspend fun sendPasswordResetEmail(email: String) {
+        val normalizedEmail = email.normalizeEmail()
+        validateEmail(normalizedEmail)
+        val auth = firebaseAuthOrError()
+        auth.sendPasswordResetEmail(normalizedEmail).await()
     }
 
     suspend fun skipLogin() {
@@ -103,12 +137,18 @@ class AuthRepository(context: Context) {
     }
 
     suspend fun logout() {
+        if (isFirebaseConfigured()) {
+            FirebaseAuth.getInstance().signOut()
+        }
         dataStore.edit { preferences ->
             preferences[IS_LOGGED_IN] = false
         }
     }
 
     suspend fun clearLocalAccount() {
+        if (isFirebaseConfigured()) {
+            FirebaseAuth.getInstance().signOut()
+        }
         dataStore.edit { preferences ->
             preferences.clear()
         }
@@ -157,7 +197,7 @@ class AuthRepository(context: Context) {
         }
     }
 
-    private fun recordRegisterAttempt(preferences: androidx.datastore.preferences.core.MutablePreferences) {
+    private fun recordRegisterAttempt(preferences: MutablePreferences) {
         val now = System.currentTimeMillis()
         val windowStart = preferences[REGISTER_WINDOW_START] ?: now
         val isSameWindow = now - windowStart < REGISTER_WINDOW_MS
@@ -168,6 +208,69 @@ class AuthRepository(context: Context) {
             preferences[REGISTER_COUNT] = 1L
         }
     }
+
+    private suspend fun registerWithFirebase(email: String, password: String) {
+        val snapshot = dataStore.data.first()
+        enforceRegisterRateLimit(snapshot[REGISTER_WINDOW_START], snapshot[REGISTER_COUNT])
+        val auth = firebaseAuthOrError()
+        val result = auth.createUserWithEmailAndPassword(email, password).await()
+        result.user?.sendEmailVerification()?.await()
+        dataStore.edit { preferences ->
+            recordRegisterAttempt(preferences)
+            saveFirebaseSession(preferences, email, emailVerified = result.user?.isEmailVerified == true)
+        }
+    }
+
+    private suspend fun loginWithFirebase(email: String, password: String) {
+        val snapshot = dataStore.data.first()
+        enforceLoginLock(snapshot[LOGIN_LOCKED_UNTIL])
+        runCatching {
+            FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password).await()
+        }.onSuccess { result ->
+            val user = result.user
+            dataStore.edit { preferences ->
+                saveFirebaseSession(preferences, user?.email ?: email, emailVerified = user?.isEmailVerified == true)
+            }
+        }.onFailure {
+            recordFailedLogin()
+            error("邮箱或密码错误，或账号尚未注册")
+        }
+    }
+
+    private suspend fun refreshFirebaseEmailVerification() {
+        val auth = firebaseAuthOrError()
+        val user = auth.currentUser ?: error("请先登录账号")
+        user.reload().await()
+        val refreshedUser = auth.currentUser ?: error("请先登录账号")
+        dataStore.edit { preferences ->
+            preferences[EMAIL_VERIFIED] = refreshedUser.isEmailVerified
+        }
+        require(refreshedUser.isEmailVerified) { "邮箱尚未验证，请先打开邮箱里的验证链接" }
+    }
+
+    private fun saveFirebaseSession(
+        preferences: MutablePreferences,
+        email: String,
+        emailVerified: Boolean
+    ) {
+        preferences[EMAIL] = email.normalizeEmail()
+        preferences[EMAIL_VERIFIED] = emailVerified
+        preferences[IS_LOGGED_IN] = true
+        preferences[SKIPPED_LOGIN] = false
+        preferences[LAST_LOGIN_AT] = System.currentTimeMillis()
+        preferences[FAILED_LOGIN_COUNT] = 0L
+        preferences.remove(LOGIN_LOCKED_UNTIL)
+        preferences.remove(LAST_FAILED_LOGIN_AT)
+    }
+
+    private fun firebaseAuthOrError(): FirebaseAuth {
+        require(isFirebaseConfigured()) {
+            "尚未配置 Firebase。请先把 google-services.json 放到 app 目录，并在 Firebase 控制台启用邮箱/密码登录。"
+        }
+        return FirebaseAuth.getInstance()
+    }
+
+    fun isFirebaseConfigured(): Boolean = FirebaseApp.getApps(appContext).isNotEmpty()
 
     private fun String.normalizeEmail(): String = trim().lowercase()
 
