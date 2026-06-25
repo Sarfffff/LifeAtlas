@@ -16,9 +16,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +32,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
+import com.xiaoyin.lifeatlas.core.auth.AuthRepository
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
@@ -46,24 +49,41 @@ import com.xiaoyin.lifeatlas.feature.timeline.TimelineRoute
 
 @Composable
 fun LifeAtlasNavHost() {
+    val context = LocalContext.current
+    val authRepository = androidx.compose.runtime.remember { AuthRepository(context) }
+    val authSession by authRepository.session.collectAsState(initial = com.xiaoyin.lifeatlas.core.auth.AuthSession())
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: LifeAtlasDestination.Home.route
+    val showBottomBar = currentRoute != LifeAtlasDestination.Auth.route
+
+    LaunchedEffect(authSession.isLoggedIn, authSession.skippedLogin) {
+        if (!authSession.isLoggedIn && !authSession.skippedLogin) {
+            navController.navigate(LifeAtlasDestination.Auth.route) {
+                popUpTo(navController.graph.startDestinationId) {
+                    inclusive = false
+                }
+                launchSingleTop = true
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
-            LifeAtlasBottomBar(
-                currentRoute = currentRoute,
-                onDestinationClick = { destination ->
-                    navController.navigate(destination.route) {
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
+            if (showBottomBar) {
+                LifeAtlasBottomBar(
+                    currentRoute = currentRoute,
+                    onDestinationClick = { destination ->
+                        navController.navigate(destination.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
         NavHost(
@@ -148,7 +168,16 @@ fun LifeAtlasNavHost() {
             }
             composable(LifeAtlasDestination.Auth.route) {
                 AuthRoute(
-                    onContinue = { navController.popBackStack() }
+                    onContinue = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(LifeAtlasDestination.Home.route) {
+                                popUpTo(LifeAtlasDestination.Auth.route) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
                 )
             }
             composable(LifeAtlasDestination.TagManagement.route) {

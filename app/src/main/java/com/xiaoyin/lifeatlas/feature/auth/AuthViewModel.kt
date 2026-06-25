@@ -58,7 +58,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun submit() {
+    fun submit(onSuccess: () -> Unit = {}) {
         val state = formState.value
         viewModelScope.launch {
             formState.update { it.copy(isLoading = true, error = null, message = null) }
@@ -81,6 +81,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     )
                 }
+                onSuccess()
             }.onFailure { error ->
                 formState.update { it.copy(isLoading = false, error = error.message ?: "操作失败") }
             }
@@ -99,10 +100,25 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun skipLogin() {
+    fun sendPasswordResetPlaceholder() {
+        val email = formState.value.email.trim()
+        formState.update {
+            it.copy(
+                message = if (email.isBlank()) {
+                    "请先输入邮箱。接入 Firebase 后会向该邮箱发送重置密码邮件。"
+                } else {
+                    "已记录重置请求。接入 Firebase 后会向 $email 发送重置密码邮件。"
+                },
+                error = null
+            )
+        }
+    }
+
+    fun skipLogin(onSkipped: () -> Unit = {}) {
         viewModelScope.launch {
             authRepository.skipLogin()
             formState.update { it.copy(message = "已继续使用本地模式", error = null) }
+            onSkipped()
         }
     }
 

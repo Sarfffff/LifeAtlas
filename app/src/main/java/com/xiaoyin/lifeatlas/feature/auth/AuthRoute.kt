@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -88,12 +88,10 @@ fun AuthRoute(
                 onEmailChange = viewModel::onEmailChange,
                 onPasswordChange = viewModel::onPasswordChange,
                 onConfirmPasswordChange = viewModel::onConfirmPasswordChange,
-                onSubmit = viewModel::submit,
+                onSubmit = { viewModel.submit(onSuccess = onContinue) },
                 onSwitchMode = viewModel::switchMode,
-                onSkip = {
-                    viewModel.skipLogin()
-                    onContinue()
-                }
+                onForgotPassword = viewModel::sendPasswordResetPlaceholder,
+                onSkip = { viewModel.skipLogin(onSkipped = onContinue) }
             )
         }
 
@@ -128,6 +126,7 @@ private fun AuthFormCard(
     onConfirmPasswordChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onSwitchMode: () -> Unit,
+    onForgotPassword: () -> Unit,
     onSkip: () -> Unit
 ) {
     Card(
@@ -203,13 +202,17 @@ private fun AuthFormCard(
             ) {
                 Text(if (uiState.isRegisterMode) "注册并登录" else "登录", fontWeight = FontWeight.Black)
             }
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = onSwitchMode) {
                     Text(if (uiState.isRegisterMode) "已有账号，去登录" else "没有账号，去注册")
                 }
-                TextButton(onClick = onSkip) {
-                    Text("跳过，继续本地使用")
+                TextButton(onClick = onForgotPassword) {
+                    Text("忘记密码")
                 }
+            }
+            TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.End)) {
+                Text("跳过，继续本地使用")
             }
         }
     }
