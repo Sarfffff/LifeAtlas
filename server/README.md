@@ -25,10 +25,26 @@ npm start
 
 ```properties
 lifeatlas.auth.provider=backend
-lifeatlas.auth.baseUrl=https://你的后端域名
+lifeatlas.auth.baseUrl=https://api.lifeatlas.cn
 ```
 
 如果暂时不填，App 会继续使用本地账号，不会访问 Firebase。
+
+## 阿里云服务器部署
+
+当前推荐服务器：
+
+- Ubuntu 22.04
+- 公网 IP：`47.122.124.84`
+- 后端监听：`127.0.0.1:8080`
+- 对外域名：`https://api.lifeatlas.cn`
+
+部署模板：
+
+- `deploy/nginx-lifeatlas.conf.example`
+- `deploy/lifeatlas-auth.service.example`
+
+具体步骤见项目文档《阿里云服务器部署清单》。
 
 ## 后续升级点
 
