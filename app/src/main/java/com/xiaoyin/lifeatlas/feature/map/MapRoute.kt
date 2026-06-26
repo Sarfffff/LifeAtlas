@@ -132,6 +132,34 @@ fun MapRoute(
             .fillMaxSize()
             .background(WildernessCream)
     ) {
+        if (forceAtlasLayer) {
+            WarmLifeAtlasPage(
+                records = records,
+                litCities = uiState.litCities,
+                selectedIndex = selectedIndex,
+                selectedMode = selectedMapMode,
+                onModeChange = { selectedMapMode = it },
+                onMarkerClick = { index ->
+                    selectedIndex = index
+                    userSelected = true
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+            MapTopBar(
+                forceAtlasLayer = true,
+                onSearchClick = {},
+                onLayerClick = {
+                    forceAtlasLayer = false
+                    sheetExpanded = false
+                    showSearchPanel = false
+                },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(start = 18.dp, top = 18.dp, end = 18.dp)
+            )
+            return@Box
+        }
+
         LifeMapCanvas(
             records = records,
             selectedIndex = selectedIndex,
@@ -265,6 +293,228 @@ fun MapRoute(
                     .align(Alignment.BottomCenter)
                     .padding(start = 16.dp, end = 16.dp, bottom = 18.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun WarmLifeAtlasPage(
+    records: List<MemoryRecord>,
+    litCities: List<String>,
+    selectedIndex: Int,
+    selectedMode: MapLightMode,
+    onModeChange: (MapLightMode) -> Unit,
+    onMarkerClick: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val pulse = remember { Animatable(0.86f) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            pulse.animateTo(1.14f, animationSpec = tween(900))
+            pulse.animateTo(0.86f, animationSpec = tween(900))
+        }
+    }
+    val selectedRecord = records.getOrNull(selectedIndex)
+    val latestCity = selectedRecord?.mapCityKey() ?: litCities.firstOrNull().orEmpty()
+
+    Box(
+        modifier = modifier
+            .background(WildernessCream)
+            .padding(top = 86.dp, start = 18.dp, end = 18.dp, bottom = 18.dp)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.wilderness_map_panel),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(30.dp))
+                .graphicsLayer(alpha = 0.46f)
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(30.dp))
+                .background(WildernessPaper.copy(alpha = 0.62f))
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(
+                    text = "点亮人生地图",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Black,
+                    color = WildernessTeal
+                )
+                Text(
+                    text = if (records.isEmpty()) {
+                        "写下一段带地点的记忆，第一座城市会在这里亮起来。"
+                    } else {
+                        "已点亮 ${litCities.size} 座城市，最近一站是 $latestCity。"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = WildernessMuted
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(330.dp)
+            ) {
+                WarmRouteLine(modifier = Modifier.align(Alignment.Center))
+                records.take(6).forEachIndexed { index, record ->
+                    WarmCityNode(
+                        title = record.mapCityKey(),
+                        selected = index == selectedIndex,
+                        pulse = pulse.value,
+                        onClick = { onMarkerClick(index) },
+                        modifier = Modifier
+                            .align(markerAlignment(index))
+                            .offset(x = markerOffsetX(index) / 2, y = markerOffsetY(index) / 2)
+                    )
+                }
+                if (records.isEmpty()) {
+                    Text(
+                        text = "等待第一束光",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        color = WildernessTeal.copy(alpha = 0.72f),
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                MapLightModeTabsV2(selectedMode = selectedMode, onModeChange = onModeChange)
+                WarmAtlasModeCard(
+                    selectedMode = selectedMode,
+                    litCityCount = litCities.size,
+                    recordCount = records.size,
+                    latestCity = latestCity.ifBlank { "未点亮" },
+                    selectedRecord = selectedRecord
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WarmRouteLine(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(22.dp)
+    ) {
+        repeat(4) { index ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .graphicsLayer {
+                        rotationZ = if (index % 2 == 0) -8f else 8f
+                        alpha = 0.28f
+                    }
+                    .background(WildernessTeal.copy(alpha = 0.32f))
+            )
+        }
+    }
+}
+
+@Composable
+private fun WarmCityNode(
+    title: String,
+    selected: Boolean,
+    pulse: Float,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(if (selected) 28.dp else 22.dp)
+                .graphicsLayer {
+                    scaleX = if (selected) pulse else 1f
+                    scaleY = if (selected) pulse else 1f
+                }
+                .shadow(if (selected) 16.dp else 8.dp, CircleShape)
+                .clip(CircleShape)
+                .background(if (selected) WildernessWildflower else WildernessSky),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(WildernessPaper)
+            )
+        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Black,
+            color = WildernessTeal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(WildernessPaper.copy(alpha = 0.78f))
+                .padding(horizontal = 7.dp, vertical = 2.dp)
+        )
+    }
+}
+
+@Composable
+private fun WarmAtlasModeCard(
+    selectedMode: MapLightMode,
+    litCityCount: Int,
+    recordCount: Int,
+    latestCity: String,
+    selectedRecord: MemoryRecord?
+) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper.copy(alpha = 0.94f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val title = when (selectedMode) {
+                MapLightMode.World -> "世界"
+                MapLightMode.City -> "城市"
+                MapLightMode.Trail -> "轨迹"
+                MapLightMode.Place -> "地点"
+            }
+            val body = when (selectedMode) {
+                MapLightMode.World -> "累计点亮 $litCityCount 城，世界地图会随着你的记忆慢慢展开。"
+                MapLightMode.City -> "最近点亮：$latestCity。每座城市都会保留你的第一段故事。"
+                MapLightMode.Trail -> "已记录 $recordCount 段带坐标的记忆，后续会形成更完整的生命路径。"
+                MapLightMode.Place -> selectedRecord?.let { "${it.title} · ${it.locationName ?: it.mapCityKey()}" }
+                    ?: "还没有选中的地点。"
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+                Text(
+                    text = when (selectedMode) {
+                        MapLightMode.World, MapLightMode.City -> "$litCityCount"
+                        MapLightMode.Trail, MapLightMode.Place -> "$recordCount"
+                    },
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Black,
+                    color = WildernessTeal
+                )
+            }
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = WildernessMuted)
         }
     }
 }
