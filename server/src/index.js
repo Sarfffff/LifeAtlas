@@ -159,10 +159,16 @@ app.post("/api/auth/password/reset/request", async (request, response) => {
     const store = await readStore();
     const user = store.users[email];
     if (user) {
-      user.resetToken = randomToken(24);
+      const code = String(crypto.randomInt(100000, 999999));
+      emailCodes.set(codeKey(email, "reset"), {
+        codeHash: hashCode(code),
+        expiresAt: Date.now() + 10 * 60 * 1000,
+        attempts: 0
+      });
+      user.resetToken = null;
       user.updatedAt = Date.now();
       await writeStore(store);
-      const mailResult = await trySendPasswordResetEmail(user);
+      const mailResult = await trySendPasswordResetCodeEmail(user, code);
       return response.json({
         ok: true,
         emailSent: mailResult.sent,
@@ -170,6 +176,34 @@ app.post("/api/auth/password/reset/request", async (request, response) => {
       });
     }
     response.json({ ok: true, emailSent: true, message: "如果邮箱已注册，重置邮件会发送到该邮箱。" });
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
+app.post("/api/auth/password/reset/confirm", async (request, response) => {
+  try {
+    const email = normalizeEmail(request.body?.email);
+    const code = String(request.body?.code || "").trim();
+    const password = String(request.body?.password || "");
+    validateEmail(email);
+    validatePassword(password);
+    verifyEmailCode(email, "reset", code);
+
+    const store = await readStore();
+    const user = store.users[email];
+    if (!user) {
+      return response.status(404).json({ message: "该邮箱尚未注册，请先创建账号" });
+    }
+
+    const passwordSalt = randomToken(16);
+    user.passwordSalt = passwordSalt;
+    user.passwordHash = hashPassword(password, passwordSalt);
+    user.resetToken = null;
+    user.updatedAt = Date.now();
+    await writeStore(store);
+
+    response.json({ ok: true, emailSent: false, message: "密码已重置，请使用新密码登录。" });
   } catch (error) {
     sendError(response, error);
   }
@@ -217,6 +251,13 @@ async function trySendPasswordResetEmail(user) {
   return trySendMail(() => sendPasswordResetEmail(user), "密码重置邮件已发送，请检查收件箱或垃圾邮件。");
 }
 
+async function trySendPasswordResetCodeEmail(user, code) {
+  return trySendMail(
+    () => sendPasswordResetCodeEmail(user, code),
+    "密码重置验证码已发送，请检查收件箱或垃圾邮件。"
+  );
+}
+
 async function trySendMail(operation, successMessage) {
   try {
     ensureSmtpConfigured();
@@ -256,6 +297,15 @@ async function sendPasswordResetEmail(user) {
     subject: "岁迹密码重置请求",
     text: `你发起了密码重置请求。当前版本先记录请求，后续会接入重置页面。令牌：${user.resetToken}`,
     html: "<p>你发起了密码重置请求。</p><p>当前版本先记录请求，后续会接入重置页面。</p>"
+  });
+}
+
+async function sendPasswordResetCodeEmail(user, code) {
+  await sendMail({
+    to: user.email,
+    subject: "岁迹密码重置验证码",
+    text: `你的岁迹密码重置验证码是：${code}\n验证码 10 分钟内有效。如非本人操作，请忽略此邮件。`,
+    html: `<p>你的岁迹密码重置验证码是：</p><p style="font-size:24px;font-weight:700;letter-spacing:4px;">${code}</p><p>验证码 10 分钟内有效。如非本人操作，请忽略此邮件。</p>`
   });
 }
 
@@ -313,7 +363,8 @@ function validatePassword(password) {
 }
 
 function normalizePurpose(purpose) {
-  return String(purpose || "login").trim().toLowerCase() === "register" ? "register" : "login";
+  const normalized = String(purpose || "login").trim().toLowerCase();
+  return ["register", "login", "reset"].includes(normalized) ? normalized : "login";
 }
 
 function normalizeEmail(email) {

@@ -161,6 +161,28 @@ class AuthRepository(context: Context) {
         }
     }
 
+    suspend fun confirmPasswordReset(
+        email: String,
+        code: String,
+        password: String,
+        confirmPassword: String
+    ) {
+        val normalizedEmail = email.normalizeEmail()
+        validateEmail(normalizedEmail)
+        validatePassword(password)
+        require(password == confirmPassword) { "两次输入的密码不一致" }
+        require(code.trim().matches(Regex("^\\d{6}$"))) { "请输入 6 位邮箱验证码" }
+        require(isBackendConfigured()) { "重置密码需要先启用国内后端账号服务" }
+        val result = withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
+            requireNotNull(authApiClient) { "国内后端地址未配置" }
+                .confirmPasswordReset(normalizedEmail, code.trim(), password)
+        }
+        dataStore.edit { preferences ->
+            preferences[AUTH_NOTICE] = result.message
+        }
+        require(result.ok) { result.message }
+    }
+
     suspend fun skipLogin() {
         dataStore.edit { preferences ->
             preferences[SKIPPED_LOGIN] = true

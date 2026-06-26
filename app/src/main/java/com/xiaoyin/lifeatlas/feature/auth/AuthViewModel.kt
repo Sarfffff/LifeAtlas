@@ -20,6 +20,7 @@ data class AuthUiState(
     val password: String = "",
     val confirmPassword: String = "",
     val isRegisterMode: Boolean = false,
+    val isPasswordResetMode: Boolean = false,
     val loginMethod: AuthLoginMethod = AuthLoginMethod.EmailCode,
     val isLoading: Boolean = false,
     val isSendingCode: Boolean = false,
@@ -78,6 +79,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         formState.update {
             it.copy(
                 isRegisterMode = !it.isRegisterMode,
+                isPasswordResetMode = false,
                 error = null,
                 message = null,
                 password = "",
@@ -99,9 +101,28 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun switchPasswordResetMode() {
+        formState.update {
+            it.copy(
+                isRegisterMode = false,
+                isPasswordResetMode = !it.isPasswordResetMode,
+                loginMethod = AuthLoginMethod.Password,
+                error = null,
+                message = null,
+                password = "",
+                confirmPassword = "",
+                verificationCode = ""
+            )
+        }
+    }
+
     fun sendEmailCode() {
         val state = formState.value
-        val purpose = if (state.isRegisterMode) "register" else "login"
+        val purpose = when {
+            state.isRegisterMode -> "register"
+            state.isPasswordResetMode -> "reset"
+            else -> "login"
+        }
         viewModelScope.launch {
             if (state.email.isBlank()) {
                 formState.update { it.copy(error = "请先填写邮箱", message = null) }
@@ -142,8 +163,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 formState.update { it.copy(error = "请先填写账号名", message = null) }
                 return@launch
             }
-            val requiresCode = state.isRegisterMode || state.loginMethod == AuthLoginMethod.EmailCode
-            val requiresPassword = state.isRegisterMode || state.loginMethod == AuthLoginMethod.Password
+            val requiresCode = state.isRegisterMode || state.isPasswordResetMode || state.loginMethod == AuthLoginMethod.EmailCode
+            val requiresPassword = state.isRegisterMode || state.isPasswordResetMode || state.loginMethod == AuthLoginMethod.Password
             if (requiresCode && state.verificationCode.length != 6) {
                 formState.update { it.copy(error = "请输入 6 位邮箱验证码", message = null) }
                 return@launch
@@ -152,13 +173,20 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 formState.update { it.copy(error = "请先填写密码", message = null) }
                 return@launch
             }
-            if (state.isRegisterMode && state.confirmPassword.isBlank()) {
+            if ((state.isRegisterMode || state.isPasswordResetMode) && state.confirmPassword.isBlank()) {
                 formState.update { it.copy(error = "请再次输入密码", message = null) }
                 return@launch
             }
             formState.update { it.copy(isLoading = true, error = null, message = null) }
             runCatching {
-                if (state.isRegisterMode) {
+                if (state.isPasswordResetMode) {
+                    authRepository.confirmPasswordReset(
+                        email = state.email,
+                        code = state.verificationCode,
+                        password = state.password,
+                        confirmPassword = state.confirmPassword
+                    )
+                } else if (state.isRegisterMode) {
                     authRepository.register(
                         email = state.email,
                         password = state.password,
@@ -179,6 +207,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         password = "",
                         confirmPassword = "",
                         verificationCode = "",
+                        isPasswordResetMode = false,
                         message = if (state.isRegisterMode) {
                             if (!authNotice.isNullOrBlank()) {
                                 "注册成功。$authNotice"
@@ -189,12 +218,16 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                             } else {
                                 "注册成功。当前是本地账号；配置国内后端后会发送真实邮箱验证邮件。"
                             }
+                        } else if (state.isPasswordResetMode) {
+                            "密码已重置，请使用新密码登录"
                         } else {
                             "登录成功"
                         }
                     )
                 }
-                onSuccess()
+                if (!state.isPasswordResetMode) {
+                    onSuccess()
+                }
             }.onFailure { error ->
                 formState.update { it.copy(isLoading = false, error = error.message ?: "操作失败") }
             }

@@ -113,7 +113,7 @@ fun AuthRoute(
                 onSendEmailCode = viewModel::sendEmailCode,
                 onSubmit = { viewModel.submit(onSuccess = onContinue) },
                 onSwitchMode = viewModel::switchMode,
-                onForgotPassword = viewModel::sendPasswordResetEmail,
+                onForgotPassword = viewModel::switchPasswordResetMode,
                 onSkip = { viewModel.skipLogin(onSkipped = onContinue) }
             )
         }
@@ -330,7 +330,7 @@ private fun AuthFormCard(
                 )
             }
 
-            if (!uiState.isRegisterMode) {
+            if (!uiState.isRegisterMode && !uiState.isPasswordResetMode) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     AuthModeChip(
                         selected = uiState.loginMethod == AuthLoginMethod.EmailCode,
@@ -368,7 +368,7 @@ private fun AuthFormCard(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
             )
 
-            if (uiState.isRegisterMode || uiState.loginMethod == AuthLoginMethod.EmailCode) {
+            if (uiState.isRegisterMode || uiState.isPasswordResetMode || uiState.loginMethod == AuthLoginMethod.EmailCode) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = uiState.verificationCode,
@@ -389,7 +389,7 @@ private fun AuthFormCard(
                 }
             }
 
-            if (uiState.isRegisterMode || uiState.loginMethod == AuthLoginMethod.Password) {
+            if (uiState.isRegisterMode || uiState.isPasswordResetMode || uiState.loginMethod == AuthLoginMethod.Password) {
                 OutlinedTextField(
                     value = uiState.password,
                     onValueChange = onPasswordChange,
@@ -401,7 +401,7 @@ private fun AuthFormCard(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
                 )
             }
-            if (uiState.isRegisterMode) {
+            if (uiState.isRegisterMode || uiState.isPasswordResetMode) {
                 OutlinedTextField(
                     value = uiState.confirmPassword,
                     onValueChange = onConfirmPasswordChange,
@@ -435,7 +435,7 @@ private fun AuthFormCard(
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = onSwitchMode) {
+                TextButton(onClick = { if (uiState.isPasswordResetMode) onForgotPassword() else onSwitchMode() }) {
                     Text(if (uiState.isRegisterMode) "已有账号，去登录" else "没有账号，去注册")
                 }
                 TextButton(onClick = onForgotPassword) {

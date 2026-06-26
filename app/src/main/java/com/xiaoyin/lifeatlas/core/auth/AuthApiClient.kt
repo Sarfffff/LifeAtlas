@@ -77,6 +77,16 @@ class AuthApiClient(
         )
     }
 
+    suspend fun confirmPasswordReset(email: String, code: String, password: String): AuthApiMailResult {
+        return post<AuthApiMailResult>(
+            path = "/api/auth/password/reset/confirm",
+            bodyText = json.encodeToString(
+                AuthApiPasswordResetConfirmRequest.serializer(),
+                AuthApiPasswordResetConfirmRequest(email, code, password)
+            )
+        )
+    }
+
     private suspend inline fun <reified T> post(
         path: String,
         bodyText: String,
@@ -183,6 +193,13 @@ private data class AuthApiEmailCodeLoginRequest(
 @Serializable
 private data class AuthApiEmailRequest(
     val email: String
+)
+
+@Serializable
+private data class AuthApiPasswordResetConfirmRequest(
+    val email: String,
+    val code: String,
+    val password: String
 )
 
 @Serializable
