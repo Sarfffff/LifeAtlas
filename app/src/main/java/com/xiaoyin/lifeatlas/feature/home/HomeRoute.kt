@@ -63,6 +63,7 @@ import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
+import com.xiaoyin.lifeatlas.feature.record.ImportanceStars
 import kotlinx.coroutines.delay
 
 @Composable
@@ -360,7 +361,13 @@ private fun RecentMemoryCard(record: MemoryRecord, photo: Photo?, onClick: () ->
                     style = MaterialTheme.typography.bodySmall,
                     color = WildernessTeal.copy(alpha = 0.58f)
                 )
-                MoodChip(record.mood ?: "开心")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MoodChip(record.mood ?: "开心")
+                    ImportanceStars(value = record.importance.toFloat(), starSize = 15.dp)
+                }
             }
         }
     }

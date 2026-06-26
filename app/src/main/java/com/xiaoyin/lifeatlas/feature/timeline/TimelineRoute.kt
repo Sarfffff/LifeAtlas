@@ -57,6 +57,7 @@ import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
+import com.xiaoyin.lifeatlas.feature.record.ImportanceStars
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -376,7 +377,13 @@ private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, isFavorite: 
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                MoodChip(record.mood ?: "平静")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MoodChip(record.mood ?: "平静")
+                    ImportanceStars(value = record.importance.toFloat(), starSize = 14.dp)
+                }
             }
             Icon(
                 imageVector = Icons.Outlined.LocationOn,

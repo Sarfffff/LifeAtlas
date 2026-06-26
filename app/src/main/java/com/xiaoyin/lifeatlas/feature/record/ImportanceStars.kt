@@ -9,6 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMuted
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
@@ -18,6 +19,9 @@ import kotlin.math.roundToInt
 fun ImportanceStars(
     value: Float,
     modifier: Modifier = Modifier,
+    starSize: Dp = 26.dp,
+    editableStarSize: Dp = 28.dp,
+    editableButtonSize: Dp = 34.dp,
     onValueChange: ((Float) -> Unit)? = null
 ) {
     val selectedCount = value.roundToInt().coerceIn(1, 5)
@@ -33,15 +37,15 @@ fun ImportanceStars(
                     imageVector = Icons.Rounded.Star,
                     contentDescription = null,
                     tint = tint,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(starSize)
                 )
             } else {
-                IconButton(onClick = { onValueChange(star.toFloat()) }, modifier = Modifier.size(34.dp)) {
+                IconButton(onClick = { onValueChange(star.toFloat()) }, modifier = Modifier.size(editableButtonSize)) {
                     Icon(
                         imageVector = Icons.Rounded.Star,
                         contentDescription = "$star 星",
                         tint = tint,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(editableStarSize)
                     )
                 }
             }

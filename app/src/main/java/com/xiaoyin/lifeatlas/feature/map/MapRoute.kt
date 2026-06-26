@@ -85,6 +85,7 @@ import com.xiaoyin.lifeatlas.core.ui.theme.WildernessPaper
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessSky
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
+import com.xiaoyin.lifeatlas.feature.record.ImportanceStars
 import kotlinx.coroutines.delay
 
 private enum class MapLightMode(val label: String) {
@@ -1044,7 +1045,13 @@ private fun MapLightPlaceCard(record: MemoryRecord, photo: Photo?) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Text(text = record.dateText(), style = MaterialTheme.typography.bodySmall, color = WildernessMuted)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = record.dateText(), style = MaterialTheme.typography.bodySmall, color = WildernessMuted)
+                ImportanceStars(value = record.importance.toFloat(), starSize = 14.dp)
+            }
         }
         Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.7f))
     }
