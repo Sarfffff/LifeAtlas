@@ -149,14 +149,6 @@ fun MapRoute(
                 .padding(start = 18.dp, top = 18.dp, end = 18.dp)
         )
 
-        MapStatusPills(
-            count = records.size,
-            cityCount = uiState.litCities.size,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 104.dp, start = 18.dp, end = 18.dp)
-        )
-
         MapCityChips(
             cities = uiState.litCities,
             selectedCity = selectedCity,
@@ -172,7 +164,7 @@ fun MapRoute(
             },
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 158.dp, start = 18.dp, end = 18.dp)
+                .padding(top = 104.dp, start = 18.dp, end = 18.dp)
         )
 
         if (showSearchPanel) {
@@ -192,7 +184,7 @@ fun MapRoute(
                 onClose = { showSearchPanel = false },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 204.dp, start = 18.dp, end = 18.dp)
+                    .padding(top = 150.dp, start = 18.dp, end = 18.dp)
             )
         }
 
@@ -597,7 +589,7 @@ private fun MapMemorySheet(
         colors = CardDefaults.cardColors(containerColor = WildernessPaper.copy(alpha = 0.98f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -606,11 +598,11 @@ private fun MapMemorySheet(
                     .clip(RoundedCornerShape(3.dp))
                     .background(WildernessMuted.copy(alpha = 0.36f))
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.Top) {
                 MapRecordPhoto(photo = photo)
-                Spacer(modifier = Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(verticalAlignment = Alignment.Top) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(record.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -632,7 +624,7 @@ private fun MapMemorySheet(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(onClick = onCityDetailClick) {
+                        TextButton(onClick = onCityDetailClick, modifier = Modifier.height(34.dp)) {
                             Text("城市详情", fontWeight = FontWeight.Black, color = WildernessTeal)
                         }
                     }
@@ -643,26 +635,22 @@ private fun MapMemorySheet(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    MoodChip(record.mood ?: "开心")
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
-                    Icon(if (isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isFavorite) "已收藏" else "收藏", fontWeight = FontWeight.Black, maxLines = 1)
-                }
-                OutlinedButton(onClick = onShareClick, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
-                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("分享", fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
-            Button(onClick = onDetailClick, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text("查看详情", fontWeight = FontWeight.Black, maxLines = 1)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(0.82f).height(42.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+                    Icon(if (isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isFavorite) "已收藏" else "收藏", fontWeight = FontWeight.Black, maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                }
+                OutlinedButton(onClick = onShareClick, modifier = Modifier.weight(0.82f).height(42.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)) {
+                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("分享", fontWeight = FontWeight.Black, maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                }
+                Button(onClick = onDetailClick, modifier = Modifier.weight(1.2f).height(42.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)) {
+                    Text("详情", fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
         }
@@ -677,14 +665,14 @@ private fun MapRecordPhoto(photo: Photo?) {
             painter = painterResource(id = R.drawable.wilderness_home_hero),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(width = 104.dp, height = 104.dp).clip(RoundedCornerShape(18.dp))
+            modifier = Modifier.size(width = 88.dp, height = 88.dp).clip(RoundedCornerShape(18.dp))
         )
     } else {
         AsyncImage(
             model = model,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(width = 104.dp, height = 104.dp).clip(RoundedCornerShape(18.dp))
+            modifier = Modifier.size(width = 88.dp, height = 88.dp).clip(RoundedCornerShape(18.dp))
         )
     }
 }

@@ -21,6 +21,7 @@ data class RecordDetailUiState(
     val record: MemoryRecord? = null,
     val photos: List<Photo> = emptyList(),
     val tags: List<Tag> = emptyList(),
+    val isFavorite: Boolean = false,
     val isDeleting: Boolean = false,
     val errorMessage: String? = null,
     val deleted: Boolean = false
@@ -47,12 +48,14 @@ class RecordDetailViewModel(
         repository.observeRecord(recordId),
         repository.observePhotos(recordId),
         repository.observeTags(recordId),
+        repository.observeFavoriteRecordIds(),
         deleteOperationState
-    ) { record, photos, tags, deleteState ->
+    ) { record, photos, tags, favoriteRecordIds, deleteState ->
         RecordDetailUiState(
             record = record,
             photos = photos,
             tags = tags,
+            isFavorite = recordId in favoriteRecordIds,
             isDeleting = deleteState.isDeleting,
             errorMessage = deleteState.errorMessage,
             deleted = deleteState.deleted
@@ -86,6 +89,12 @@ class RecordDetailViewModel(
                     )
                 }
             }
+        }
+    }
+
+    fun setFavorite(favorite: Boolean) {
+        viewModelScope.launch {
+            repository.setFavorite(recordId, favorite)
         }
     }
 }

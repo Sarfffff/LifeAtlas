@@ -92,11 +92,12 @@ fun LifeAtlasNavHost() {
                     currentRoute = currentRoute,
                     onDestinationClick = { destination ->
                         navController.navigate(destination.route) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
+                            popUpTo(LifeAtlasDestination.Home.route) {
+                                inclusive = false
+                                saveState = false
                             }
                             launchSingleTop = true
-                            restoreState = true
+                            restoreState = false
                         }
                     }
                 )
@@ -115,11 +116,11 @@ fun LifeAtlasNavHost() {
                     },
                     onViewAllClick = {
                         navController.navigate(LifeAtlasDestination.Timeline.route) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
+                            popUpTo(LifeAtlasDestination.Home.route) {
+                                saveState = false
                             }
                             launchSingleTop = true
-                            restoreState = true
+                            restoreState = false
                         }
                     },
                     onRecordClick = { recordId ->

@@ -86,6 +86,6 @@ private fun MapView.renderMarkers(
     }
 
     if (firstMarkerPosition != null) {
-        amap.moveCamera(CameraUpdateFactory.newLatLngZoom(firstMarkerPosition, 12f))
+        amap.moveCamera(CameraUpdateFactory.newLatLngZoom(firstMarkerPosition, 10.5f))
     }
 }

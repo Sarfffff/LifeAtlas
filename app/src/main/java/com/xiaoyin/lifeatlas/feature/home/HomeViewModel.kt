@@ -50,4 +50,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             repository.seedIfEmpty()
         }
     }
+
+    fun deleteRecord(recordId: Long) {
+        viewModelScope.launch {
+            repository.deleteRecord(recordId)
+        }
+    }
 }

@@ -25,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -162,13 +161,14 @@ fun AddRecordRoute(
             label = { Text("心情") },
             singleLine = true
         )
-        Text(text = "重要程度：${uiState.importance.toInt()}", style = MaterialTheme.typography.bodyMedium)
-        Slider(
-            value = uiState.importance,
-            onValueChange = viewModel::onImportanceChange,
-            valueRange = 1f..5f,
-            steps = 3
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "重要程度", style = MaterialTheme.typography.bodyMedium)
+            ImportanceStars(value = uiState.importance, onValueChange = viewModel::onImportanceChange)
+        }
         OutlinedTextField(
             value = uiState.tagsText,
             onValueChange = viewModel::onTagsTextChange,

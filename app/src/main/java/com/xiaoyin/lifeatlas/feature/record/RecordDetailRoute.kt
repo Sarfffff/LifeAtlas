@@ -1,5 +1,6 @@
 package com.xiaoyin.lifeatlas.feature.record
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -37,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,6 +66,7 @@ fun RecordDetailRoute(
     onDeleted: () -> Unit,
     viewModel: RecordDetailViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -117,6 +124,20 @@ fun RecordDetailRoute(
                 record = record,
                 photos = uiState.photos,
                 tags = uiState.tags,
+                isFavorite = uiState.isFavorite,
+                onFavoriteClick = { viewModel.setFavorite(!uiState.isFavorite) },
+                onShareClick = {
+                    context.startActivity(
+                        Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "岁迹记忆：${record.title}")
+                                putExtra(Intent.EXTRA_TEXT, record.toShareText())
+                            },
+                            "分享这段记忆"
+                        )
+                    )
+                },
                 onEditPhotos = { onEdit(record.id) }
             )
         }
@@ -152,6 +173,9 @@ private fun RecordDetailContent(
     record: MemoryRecord,
     photos: List<Photo>,
     tags: List<Tag>,
+    isFavorite: Boolean,
+    onFavoriteClick: () -> Unit,
+    onShareClick: () -> Unit,
     onEditPhotos: () -> Unit
 ) {
     Card(
@@ -184,7 +208,34 @@ private fun RecordDetailContent(
             record.mood?.let {
                 DetailLine(label = "心情", value = it)
             }
-            DetailLine(label = "重要程度", value = "${record.importance}")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("重要程度", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                ImportanceStars(value = record.importance.toFloat())
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onFavoriteClick, modifier = Modifier.weight(1f)) {
+                    androidx.compose.material3.Icon(
+                        if (isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (isFavorite) "已收藏" else "收藏")
+                }
+                OutlinedButton(onClick = onShareClick, modifier = Modifier.weight(1f)) {
+                    androidx.compose.material3.Icon(
+                        Icons.Outlined.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("分享")
+                }
+            }
         }
     }
     if (tags.isNotEmpty()) {
@@ -215,6 +266,16 @@ private fun RecordDetailContent(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
         )
     }
+}
+
+private fun MemoryRecord.toShareText(): String {
+    val place = locationName?.takeIf { it.isNotBlank() } ?: "未填写地点"
+    val coordinate = if (latitude != null && longitude != null) {
+        "\n坐标：$latitude, $longitude"
+    } else {
+        ""
+    }
+    return "我在岁迹记录了一段记忆：$title\n地点：$place\n日期：${recordTime.formatDateTime()}$coordinate\n\n${content.ifBlank { "这段记忆还没有正文。" }}"
 }
 
 @Composable
