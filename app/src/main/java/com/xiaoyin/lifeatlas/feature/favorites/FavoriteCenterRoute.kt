@@ -1,5 +1,6 @@
 package com.xiaoyin.lifeatlas.feature.favorites
 
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.SentimentSatisfied
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -37,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +64,7 @@ fun FavoriteCenterRoute(
     onRecordClick: (Long) -> Unit,
     viewModel: FavoriteCenterViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
     Column(
@@ -84,6 +88,18 @@ fun FavoriteCenterRoute(
                         record = record,
                         photo = uiState.firstPhotosByRecordId[record.id],
                         onClick = { onRecordClick(record.id) },
+                        onShareClick = {
+                            context.startActivity(
+                                Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_SUBJECT, "岁迹记忆：${record.title}")
+                                        putExtra(Intent.EXTRA_TEXT, record.toShareText())
+                                    },
+                                    "分享这段记忆"
+                                )
+                            )
+                        },
                         onRemoveClick = { viewModel.removeFavorite(record.id) }
                     )
                 }
@@ -162,6 +178,7 @@ private fun FavoriteRecordCard(
     record: MemoryRecord,
     photo: Photo?,
     onClick: () -> Unit,
+    onShareClick: () -> Unit,
     onRemoveClick: () -> Unit
 ) {
     Card(
@@ -232,6 +249,16 @@ private fun FavoriteRecordCard(
                         .background(WildernessWildflower.copy(alpha = 0.34f))
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
+                OutlinedButton(onClick = onShareClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.Share,
+                        contentDescription = null,
+                        tint = WildernessTeal,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("分享", color = WildernessTeal, fontWeight = FontWeight.Black)
+                }
                 OutlinedButton(onClick = onRemoveClick) {
                     Icon(
                         imageVector = Icons.Outlined.DeleteOutline,
@@ -300,4 +327,14 @@ private fun String.toFavoriteSummary(maxLength: Int = 58): String {
     val normalized = trim().replace(Regex("\\s+"), " ")
     if (normalized.isBlank()) return "暂无正文"
     return if (normalized.length <= maxLength) normalized else "${normalized.take(maxLength)}..."
+}
+
+private fun MemoryRecord.toShareText(): String {
+    val place = locationName?.takeIf { it.isNotBlank() } ?: "未填写地点"
+    val coordinate = if (latitude != null && longitude != null) {
+        "\n坐标：$latitude, $longitude"
+    } else {
+        ""
+    }
+    return "我在岁迹收藏了一段记忆：$title\n地点：$place\n时间：${recordTime.formatDate()}$coordinate\n\n${content.ifBlank { "这段记忆还没有正文。" }}"
 }

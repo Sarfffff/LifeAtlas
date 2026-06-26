@@ -1,5 +1,6 @@
 package com.xiaoyin.lifeatlas.feature.city
 
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +61,7 @@ fun CityDetailRoute(
     onRecordClick: (Long) -> Unit,
     viewModel: CityDetailViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
     Column(
@@ -84,6 +88,18 @@ fun CityDetailRoute(
                     CityRecordCard(
                         record = record,
                         photo = uiState.firstPhotosByRecordId[record.id],
+                        onShareClick = {
+                            context.startActivity(
+                                Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_SUBJECT, "岁迹城市记忆：${record.title}")
+                                        putExtra(Intent.EXTRA_TEXT, record.toShareText(uiState.cityName))
+                                    },
+                                    "分享这段城市记忆"
+                                )
+                            )
+                        },
                         onClick = { onRecordClick(record.id) }
                     )
                 }
@@ -143,7 +159,12 @@ private fun EmptyCityCard(cityName: String) {
 }
 
 @Composable
-private fun CityRecordCard(record: MemoryRecord, photo: Photo?, onClick: () -> Unit) {
+private fun CityRecordCard(
+    record: MemoryRecord,
+    photo: Photo?,
+    onShareClick: () -> Unit,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -194,6 +215,19 @@ private fun CityRecordCard(record: MemoryRecord, photo: Photo?, onClick: () -> U
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    IconButton(onClick = onShareClick, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Outlined.Share,
+                            contentDescription = "分享",
+                            tint = WildernessTeal,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -232,4 +266,15 @@ private fun String.toCitySummary(maxLength: Int = 46): String {
     val normalized = trim().replace(Regex("\\s+"), " ")
     if (normalized.isBlank()) return "暂无正文"
     return if (normalized.length <= maxLength) normalized else "${normalized.take(maxLength)}..."
+}
+
+private fun MemoryRecord.toShareText(cityName: String): String {
+    val city = cityName.ifBlank { locationName.orEmpty() }.ifBlank { "未填写城市" }
+    val place = locationName?.takeIf { it.isNotBlank() } ?: "未填写地点"
+    val coordinate = if (latitude != null && longitude != null) {
+        "\n坐标：$latitude, $longitude"
+    } else {
+        ""
+    }
+    return "我在岁迹点亮了 $city 的一段记忆：$title\n地点：$place\n时间：${recordTime.formatDate()}$coordinate\n\n${content.ifBlank { "这段记忆还没有正文。" }}"
 }
