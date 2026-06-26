@@ -208,7 +208,7 @@ fun MapRoute(
                     .padding(start = 16.dp, end = 16.dp, bottom = 18.dp)
             )
         } else {
-            MapMemorySheet(
+            MapLightSheet(
                 record = selectedRecord,
                 photo = uiState.firstPhotosByRecordId[selectedRecord.id],
                 litCityCount = uiState.litCities.size,
@@ -279,6 +279,7 @@ private fun LifeMapCanvas(
                         snippet = record.locationName ?: "已点亮坐标"
                     )
                 },
+                selectedMarkerId = records.getOrNull(selectedIndex)?.id,
                 onMarkerClick = onRealMarkerClick,
                 modifier = Modifier.fillMaxSize()
             )
@@ -567,6 +568,161 @@ private fun NewMapMemoryButton(onClick: () -> Unit, modifier: Modifier = Modifie
     ) {
         Icon(Icons.Outlined.AddLocationAlt, contentDescription = null, tint = WildernessTeal, modifier = Modifier.size(22.dp))
         Text("点亮新城市", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+    }
+}
+
+@Composable
+private fun MapLightSheet(
+    record: MemoryRecord,
+    photo: Photo?,
+    litCityCount: Int,
+    currentCity: String,
+    isFavorite: Boolean,
+    onFavoriteClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onCityDetailClick: () -> Unit,
+    onDetailClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper.copy(alpha = 0.98f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .width(48.dp)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(WildernessMuted.copy(alpha = 0.32f))
+            )
+
+            MapLightModeTabs()
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(WildernessMeadow.copy(alpha = 0.32f))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("累计点亮", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = WildernessTeal)
+                        Text("$litCityCount", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+                        Text("城", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = WildernessTeal)
+                    }
+                    Text(
+                        "最近点亮：$currentCity · 继续把人生地图铺开",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WildernessMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                TextButton(onClick = onCityDetailClick) {
+                    Text("点亮记录", fontWeight = FontWeight.Black, color = WildernessTeal)
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(WildernessWildflower.copy(alpha = 0.18f))
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MapRecordPhoto(photo = photo)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(record.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = WildernessMuted, modifier = Modifier.size(16.dp))
+                        Text(
+                            record.locationName ?: "已点亮坐标",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = WildernessMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(text = record.dateText(), style = MaterialTheme.typography.bodySmall, color = WildernessMuted)
+                }
+                Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.7f))
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)
+                ) {
+                    Icon(if (isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isFavorite) "已收藏" else "收藏", fontWeight = FontWeight.Black, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+                }
+                OutlinedButton(
+                    onClick = onShareClick,
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)
+                ) {
+                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("分享", fontWeight = FontWeight.Black, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+                }
+                Button(
+                    onClick = onDetailClick,
+                    modifier = Modifier.weight(1.1f).height(40.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)
+                ) {
+                    Text("详情", fontWeight = FontWeight.Black, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapLightModeTabs() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .clip(RoundedCornerShape(21.dp))
+            .background(WildernessCream.copy(alpha = 0.92f))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        listOf("世界", "城市", "轨迹", "地点").forEach { label ->
+            val selected = label == "城市"
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(if (selected) WildernessMeadow.copy(alpha = 0.86f) else Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black,
+                    color = if (selected) WildernessTeal else WildernessMuted
+                )
+            }
+        }
     }
 }
 
