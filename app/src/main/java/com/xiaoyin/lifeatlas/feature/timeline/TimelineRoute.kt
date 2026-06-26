@@ -20,8 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SentimentSatisfied
 import androidx.compose.material.icons.outlined.Tune
@@ -117,6 +117,7 @@ fun TimelineRoute(
                     isLast = index == groups.lastIndex,
                     firstPhotosByRecordId = uiState.firstPhotosByRecordId,
                     favoriteRecordIds = uiState.favoriteRecordIds,
+                    onFavoriteClick = viewModel::setFavorite,
                     onRecordClick = onRecordClick
                 )
             }
@@ -264,6 +265,7 @@ private fun TimelineMonthSection(
     isLast: Boolean,
     firstPhotosByRecordId: Map<Long, Photo>,
     favoriteRecordIds: Set<Long>,
+    onFavoriteClick: (Long, Boolean) -> Unit,
     onRecordClick: (Long) -> Unit
 ) {
     Row(
@@ -282,6 +284,9 @@ private fun TimelineMonthSection(
                     record = record,
                     photo = firstPhotosByRecordId[record.id],
                     isFavorite = record.id in favoriteRecordIds,
+                    onFavoriteClick = {
+                        onFavoriteClick(record.id, record.id !in favoriteRecordIds)
+                    },
                     onClick = { onRecordClick(record.id) }
                 )
             }
@@ -316,7 +321,13 @@ private fun MonthRail(month: String, year: String, isLast: Boolean, height: Dp) 
 }
 
 @Composable
-private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, isFavorite: Boolean, onClick: () -> Unit) {
+private fun TimelineRecordCard(
+    record: MemoryRecord,
+    photo: Photo?,
+    isFavorite: Boolean,
+    onFavoriteClick: () -> Unit,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -347,7 +358,17 @@ private fun TimelineRecordCard(record: MemoryRecord, photo: Photo?, isFavorite: 
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    Icon(imageVector = Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.54f), modifier = Modifier.size(20.dp))
+                    IconButton(
+                        onClick = onFavoriteClick,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
+                            contentDescription = if (isFavorite) "取消收藏" else "收藏",
+                            tint = if (isFavorite) WildernessWildflower else WildernessTeal.copy(alpha = 0.54f),
+                            modifier = Modifier.size(21.dp)
+                        )
+                    }
                 }
                 if (isFavorite) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {

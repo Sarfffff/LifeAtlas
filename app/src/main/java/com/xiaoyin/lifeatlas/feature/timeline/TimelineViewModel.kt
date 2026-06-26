@@ -116,6 +116,12 @@ class TimelineViewModel(application: Application) : AndroidViewModel(application
         favoriteOnly.update { !it }
     }
 
+    fun setFavorite(recordId: Long, favorite: Boolean) {
+        viewModelScope.launch {
+            repository.setFavorite(recordId, favorite)
+        }
+    }
+
     fun onSearchQueryChange(value: String) {
         searchQuery.update { value }
     }
