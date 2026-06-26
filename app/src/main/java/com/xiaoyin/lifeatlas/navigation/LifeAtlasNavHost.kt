@@ -64,8 +64,9 @@ fun LifeAtlasNavHost() {
     val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: LifeAtlasDestination.Home.route
-    val showBottomBar = currentRoute != LifeAtlasDestination.Auth.route &&
-        currentRoute != LifeAtlasDestination.Onboarding.route
+    val showBottomBar = topLevelDestinations.any { destination ->
+        destination.route == currentRoute
+    }
 
     LaunchedEffect(authSession.isLoggedIn, authSession.skippedLogin, onboardingCompleted) {
         if (!authSession.isLoggedIn && !authSession.skippedLogin) {
