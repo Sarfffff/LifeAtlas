@@ -87,6 +87,13 @@ import com.xiaoyin.lifeatlas.core.ui.theme.WildernessTeal
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessWildflower
 import kotlinx.coroutines.delay
 
+private enum class MapLightMode(val label: String) {
+    World("世界"),
+    City("城市"),
+    Trail("轨迹"),
+    Place("地点")
+}
+
 @Composable
 fun MapRoute(
     onRecordClick: (Long) -> Unit,
@@ -100,6 +107,8 @@ fun MapRoute(
     var searchQuery by remember { mutableStateOf("") }
     var showSearchPanel by remember { mutableStateOf(false) }
     var forceAtlasLayer by remember { mutableStateOf(false) }
+    var sheetExpanded by remember { mutableStateOf(false) }
+    var selectedMapMode by remember { mutableStateOf(MapLightMode.City) }
     val records = remember(uiState.locatedRecords, selectedCity, searchQuery) {
         uiState.locatedRecords
             .filter { record -> selectedCity == null || record.mapCityKey() == selectedCity }
@@ -202,18 +211,26 @@ fun MapRoute(
         )
 
         if (selectedRecord == null) {
-            EmptyMapMemoryCard(
+            MapLightCollapsedBar(
+                title = "还没有点亮坐标",
+                subtitle = "新增一段带地点的记忆，地图就会出现第一束光。",
+                actionText = "去新增",
+                onClick = onAddMemoryClick,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 16.dp, end = 16.dp, bottom = 18.dp)
             )
-        } else {
-            MapLightSheet(
+        } else if (sheetExpanded) {
+            MapLightSheetV2(
                 record = selectedRecord,
                 photo = uiState.firstPhotosByRecordId[selectedRecord.id],
                 litCityCount = uiState.litCities.size,
+                recordCount = records.size,
                 currentCity = selectedCity ?: selectedRecord.mapCityKey(),
+                selectedMode = selectedMapMode,
                 isFavorite = selectedRecord.id in uiState.favoriteRecordIds,
+                onModeChange = { selectedMapMode = it },
+                onCollapse = { sheetExpanded = false },
                 onFavoriteClick = {
                     viewModel.setFavorite(
                         recordId = selectedRecord.id,
@@ -234,6 +251,16 @@ fun MapRoute(
                 },
                 onCityDetailClick = { onCityDetailClick(selectedCity ?: selectedRecord.mapCityKey()) },
                 onDetailClick = { onRecordClick(selectedRecord.id) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 18.dp)
+            )
+        } else {
+            MapLightCollapsedBar(
+                title = "已点亮 ${uiState.litCities.size} 城 · ${records.size} 段记忆",
+                subtitle = "${selectedRecord.mapCityKey()}：${selectedRecord.title}",
+                actionText = "展开",
+                onClick = { sheetExpanded = true },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 16.dp, end = 16.dp, bottom = 18.dp)
@@ -568,6 +595,245 @@ private fun NewMapMemoryButton(onClick: () -> Unit, modifier: Modifier = Modifie
     ) {
         Icon(Icons.Outlined.AddLocationAlt, contentDescription = null, tint = WildernessTeal, modifier = Modifier.size(22.dp))
         Text("点亮新城市", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+    }
+}
+
+@Composable
+private fun MapLightCollapsedBar(
+    title: String,
+    subtitle: String,
+    actionText: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper.copy(alpha = 0.96f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(WildernessMeadow.copy(alpha = 0.58f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = WildernessTeal, modifier = Modifier.size(24.dp))
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = WildernessMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(actionText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+        }
+    }
+}
+
+@Composable
+private fun MapLightSheetV2(
+    record: MemoryRecord,
+    photo: Photo?,
+    litCityCount: Int,
+    recordCount: Int,
+    currentCity: String,
+    selectedMode: MapLightMode,
+    isFavorite: Boolean,
+    onModeChange: (MapLightMode) -> Unit,
+    onCollapse: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onCityDetailClick: () -> Unit,
+    onDetailClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = WildernessPaper.copy(alpha = 0.98f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .width(48.dp)
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(WildernessMuted.copy(alpha = 0.32f))
+                )
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    TextButton(onClick = onCollapse) {
+                        Text("收起", fontWeight = FontWeight.Black, color = WildernessMuted)
+                    }
+                }
+            }
+
+            MapLightModeTabsV2(selectedMode = selectedMode, onModeChange = onModeChange)
+
+            when (selectedMode) {
+                MapLightMode.World -> MapLightSummaryBlock(
+                    title = "世界视野",
+                    primary = "$litCityCount 城",
+                    subtitle = "你已经把 $recordCount 段记忆钉在地图上，下一站继续向外延展。",
+                    actionText = "点亮记录",
+                    onActionClick = onCityDetailClick
+                )
+                MapLightMode.City -> MapLightSummaryBlock(
+                    title = "累计点亮",
+                    primary = "$litCityCount 城",
+                    subtitle = "最近点亮：$currentCity · 继续把人生地图铺开。",
+                    actionText = "城市详情",
+                    onActionClick = onCityDetailClick
+                )
+                MapLightMode.Trail -> MapLightSummaryBlock(
+                    title = "轨迹概览",
+                    primary = "$recordCount 段",
+                    subtitle = "地图会按照时间把带坐标的记忆连成可回看的路径。",
+                    actionText = "查看详情",
+                    onActionClick = onDetailClick
+                )
+                MapLightMode.Place -> MapLightPlaceCard(record = record, photo = photo)
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)
+                ) {
+                    Icon(if (isFavorite) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isFavorite) "已收藏" else "收藏", fontWeight = FontWeight.Black, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+                }
+                OutlinedButton(
+                    onClick = onShareClick,
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WildernessTeal)
+                ) {
+                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("分享", fontWeight = FontWeight.Black, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+                }
+                Button(
+                    onClick = onDetailClick,
+                    modifier = Modifier.weight(1.1f).height(40.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = WildernessTeal, contentColor = WildernessPaper)
+                ) {
+                    Text("详情", fontWeight = FontWeight.Black, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapLightSummaryBlock(
+    title: String,
+    primary: String,
+    subtitle: String,
+    actionText: String,
+    onActionClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(WildernessMeadow.copy(alpha = 0.32f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = WildernessTeal)
+                Text(primary, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+            }
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = WildernessMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        TextButton(onClick = onActionClick) {
+            Text(actionText, fontWeight = FontWeight.Black, color = WildernessTeal)
+        }
+    }
+}
+
+@Composable
+private fun MapLightPlaceCard(record: MemoryRecord, photo: Photo?) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(WildernessWildflower.copy(alpha = 0.18f))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MapRecordPhoto(photo = photo)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(record.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = WildernessMuted, modifier = Modifier.size(16.dp))
+                Text(
+                    record.locationName ?: "已点亮坐标",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = WildernessMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(text = record.dateText(), style = MaterialTheme.typography.bodySmall, color = WildernessMuted)
+        }
+        Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = WildernessTeal.copy(alpha = 0.7f))
+    }
+}
+
+@Composable
+private fun MapLightModeTabsV2(
+    selectedMode: MapLightMode,
+    onModeChange: (MapLightMode) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .clip(RoundedCornerShape(21.dp))
+            .background(WildernessCream.copy(alpha = 0.92f))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MapLightMode.values().forEach { mode ->
+            val selected = mode == selectedMode
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(if (selected) WildernessMeadow.copy(alpha = 0.86f) else Color.Transparent)
+                    .clickable { onModeChange(mode) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    mode.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black,
+                    color = if (selected) WildernessTeal else WildernessMuted
+                )
+            }
+        }
     }
 }
 
