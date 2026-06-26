@@ -15,6 +15,8 @@ const jwtSecret = process.env.JWT_SECRET || "lifeatlas-dev-secret-change-me";
 const dataFile = process.env.DATA_FILE || "./data/users.json";
 const appBaseUrl = (process.env.APP_BASE_URL || `http://localhost:${port}`).replace(/\/$/, "");
 const registerLimit = new Map();
+const emailCodeLimit = new Map();
+const emailCodes = new Map();
 
 app.use(cors());
 app.use(express.json({ limit: "512kb" }));
@@ -23,10 +25,36 @@ app.get("/health", (_request, response) => {
   response.json({ ok: true, service: "LifeAtlas Auth Server" });
 });
 
+app.post("/api/auth/email/code/request", async (request, response) => {
+  try {
+    const email = normalizeEmail(request.body?.email);
+    const purpose = normalizePurpose(request.body?.purpose);
+    validateEmail(email);
+    enforceEmailCodeLimit(email, purpose);
+
+    const code = String(crypto.randomInt(100000, 999999));
+    emailCodes.set(codeKey(email, purpose), {
+      codeHash: hashCode(code),
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0
+    });
+
+    const mailResult = await trySendEmailCode(email, code, purpose);
+    response.json({
+      ok: true,
+      emailSent: mailResult.sent,
+      message: mailResult.message
+    });
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
 app.post("/api/auth/register", async (request, response) => {
   try {
-    const { email, password } = parseEmailPassword(request.body);
+    const { email, password, accountName, code } = parseRegisterRequest(request.body);
     enforceRegisterLimit(email);
+    verifyEmailCode(email, "register", code);
 
     const store = await readStore();
     if (store.users[email]) {
@@ -36,19 +64,19 @@ app.post("/api/auth/register", async (request, response) => {
     const passwordSalt = randomToken(16);
     const user = {
       email,
+      accountName,
       passwordSalt,
       passwordHash: hashPassword(password, passwordSalt),
-      emailVerified: false,
-      verificationToken: randomToken(24),
+      emailVerified: true,
+      verificationToken: null,
       resetToken: null,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
     store.users[email] = user;
     await writeStore(store);
-    const mailResult = await trySendVerificationEmail(user);
 
-    response.json(toSession(user, mailResult));
+    response.json(toSession(user, { sent: true, message: "注册成功，邮箱验证码已通过。" }));
   } catch (error) {
     sendError(response, error);
   }
@@ -68,15 +96,37 @@ app.post("/api/auth/login", async (request, response) => {
   }
 });
 
+app.post("/api/auth/login/code", async (request, response) => {
+  try {
+    const email = normalizeEmail(request.body?.email);
+    const code = String(request.body?.code || "").trim();
+    validateEmail(email);
+    verifyEmailCode(email, "login", code);
+
+    const store = await readStore();
+    const user = store.users[email];
+    if (!user) {
+      return response.status(404).json({ message: "该邮箱尚未注册，请先注册账号" });
+    }
+    user.emailVerified = true;
+    user.updatedAt = Date.now();
+    await writeStore(store);
+    response.json(toSession(user));
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
 app.post("/api/auth/email/verification/request", async (request, response) => {
   try {
     const user = await requireUser(request);
-    user.verificationToken = randomToken(24);
-    user.updatedAt = Date.now();
-    const store = await readStore();
-    store.users[user.email] = user;
-    await writeStore(store);
-    const mailResult = await trySendVerificationEmail(user);
+    const code = String(crypto.randomInt(100000, 999999));
+    emailCodes.set(codeKey(user.email, "login"), {
+      codeHash: hashCode(code),
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0
+    });
+    const mailResult = await trySendEmailCode(user.email, code, "login");
     response.json({
       ok: true,
       emailSent: mailResult.sent,
@@ -119,7 +169,7 @@ app.post("/api/auth/password/reset/request", async (request, response) => {
         message: mailResult.message
       });
     }
-    response.json({ ok: true, emailSent: true, message: "如果邮箱已注册，重置邮件会发送到该邮箱" });
+    response.json({ ok: true, emailSent: true, message: "如果邮箱已注册，重置邮件会发送到该邮箱。" });
   } catch (error) {
     sendError(response, error);
   }
@@ -155,12 +205,16 @@ function toSession(user, mailResult = null) {
   };
 }
 
-async function trySendVerificationEmail(user) {
-  return trySendMail(() => sendVerificationEmail(user), "验证邮件已发送，请检查收件箱或垃圾邮件");
+async function trySendEmailCode(email, code, purpose) {
+  const label = purpose === "login" ? "登录" : "注册";
+  return trySendMail(
+    () => sendEmailCode(email, code, label),
+    `${label}验证码已发送，请检查收件箱或垃圾邮件。`
+  );
 }
 
 async function trySendPasswordResetEmail(user) {
-  return trySendMail(() => sendPasswordResetEmail(user), "密码重置邮件已发送，请检查收件箱或垃圾邮件");
+  return trySendMail(() => sendPasswordResetEmail(user), "密码重置邮件已发送，请检查收件箱或垃圾邮件。");
 }
 
 async function trySendMail(operation, successMessage) {
@@ -187,13 +241,12 @@ function ensureSmtpConfigured() {
   }
 }
 
-async function sendVerificationEmail(user) {
-  const link = `${appBaseUrl}/api/auth/email/verify?email=${encodeURIComponent(user.email)}&token=${encodeURIComponent(user.verificationToken)}`;
+async function sendEmailCode(email, code, label) {
   await sendMail({
-    to: user.email,
-    subject: "验证你的岁迹邮箱",
-    text: `欢迎使用岁迹。请打开下面的链接完成邮箱验证：\n${link}`,
-    html: `<p>欢迎使用岁迹。</p><p><a href="${link}">点击完成邮箱验证</a></p>`
+    to: email,
+    subject: `岁迹${label}验证码`,
+    text: `你的岁迹${label}验证码是：${code}\n验证码 10 分钟内有效，请勿转发给他人。`,
+    html: `<p>你的岁迹${label}验证码是：</p><p style="font-size:24px;font-weight:700;letter-spacing:4px;">${code}</p><p>验证码 10 分钟内有效，请勿转发给他人。</p>`
   });
 }
 
@@ -202,7 +255,7 @@ async function sendPasswordResetEmail(user) {
     to: user.email,
     subject: "岁迹密码重置请求",
     text: `你发起了密码重置请求。当前版本先记录请求，后续会接入重置页面。令牌：${user.resetToken}`,
-    html: `<p>你发起了密码重置请求。</p><p>当前版本先记录请求，后续会接入重置页面。</p>`
+    html: "<p>你发起了密码重置请求。</p><p>当前版本先记录请求，后续会接入重置页面。</p>"
   });
 }
 
@@ -227,12 +280,20 @@ function parseEmailPassword(body) {
   const email = normalizeEmail(body?.email);
   const password = String(body?.password || "");
   validateEmail(email);
-  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    const error = new Error("密码至少 8 位，并同时包含字母和数字");
+  validatePassword(password);
+  return { email, password };
+}
+
+function parseRegisterRequest(body) {
+  const { email, password } = parseEmailPassword(body);
+  const accountName = String(body?.accountName || "").trim();
+  const code = String(body?.code || "").trim();
+  if (accountName.length < 2 || accountName.length > 24) {
+    const error = new Error("账号名需要 2-24 个字符");
     error.status = 400;
     throw error;
   }
-  return { email, password };
+  return { email, password, accountName, code };
 }
 
 function validateEmail(email) {
@@ -243,8 +304,77 @@ function validateEmail(email) {
   }
 }
 
+function validatePassword(password) {
+  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    const error = new Error("密码至少 8 位，并同时包含字母和数字");
+    error.status = 400;
+    throw error;
+  }
+}
+
+function normalizePurpose(purpose) {
+  return String(purpose || "login").trim().toLowerCase() === "register" ? "register" : "login";
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function enforceEmailCodeLimit(email, purpose) {
+  const now = Date.now();
+  const minuteKey = `${purpose}:${email}:${Math.floor(now / 60000)}`;
+  const hourKey = `${purpose}:${email}:${Math.floor(now / 3600000)}`;
+  const minuteCount = emailCodeLimit.get(minuteKey) || 0;
+  const hourCount = emailCodeLimit.get(hourKey) || 0;
+  if (minuteCount >= 1) {
+    const error = new Error("验证码发送过于频繁，请 1 分钟后再试");
+    error.status = 429;
+    throw error;
+  }
+  if (hourCount >= 6) {
+    const error = new Error("验证码发送次数过多，请稍后再试");
+    error.status = 429;
+    throw error;
+  }
+  emailCodeLimit.set(minuteKey, minuteCount + 1);
+  emailCodeLimit.set(hourKey, hourCount + 1);
+}
+
+function verifyEmailCode(email, purpose, code) {
+  if (!code || !/^\d{6}$/.test(code)) {
+    const error = new Error("请输入 6 位邮箱验证码");
+    error.status = 400;
+    throw error;
+  }
+  const key = codeKey(email, purpose);
+  const entry = emailCodes.get(key);
+  if (!entry || entry.expiresAt < Date.now()) {
+    emailCodes.delete(key);
+    const error = new Error("验证码已过期，请重新获取");
+    error.status = 400;
+    throw error;
+  }
+  if (entry.attempts >= 5) {
+    emailCodes.delete(key);
+    const error = new Error("验证码错误次数过多，请重新获取");
+    error.status = 429;
+    throw error;
+  }
+  entry.attempts += 1;
+  if (entry.codeHash !== hashCode(code)) {
+    const error = new Error("验证码不正确");
+    error.status = 400;
+    throw error;
+  }
+  emailCodes.delete(key);
+}
+
+function codeKey(email, purpose) {
+  return `${purpose}:${email}`;
+}
+
+function hashCode(code) {
+  return crypto.createHash("sha256").update(`${jwtSecret}:${code}`).digest("hex");
 }
 
 function enforceRegisterLimit(email) {

@@ -54,14 +54,22 @@ class AuthRepository(context: Context) {
         )
     }
 
-    suspend fun register(email: String, password: String, confirmPassword: String) {
+    suspend fun register(
+        email: String,
+        password: String,
+        confirmPassword: String,
+        accountName: String = "旷野小旅人",
+        verificationCode: String = ""
+    ) {
         val normalizedEmail = email.normalizeEmail()
+        val normalizedAccountName = accountName.trim()
         validateEmail(normalizedEmail)
         validatePassword(password)
         require(password == confirmPassword) { "两次输入的密码不一致" }
+        require(normalizedAccountName.length in 2..24) { "账号名需要 2-24 个字符" }
 
         when {
-            isBackendConfigured() -> registerWithBackend(normalizedEmail, password)
+            isBackendConfigured() -> registerWithBackend(normalizedEmail, password, normalizedAccountName, verificationCode)
             shouldUseFirebase() -> registerWithFirebase(normalizedEmail, password)
             else -> registerLocal(normalizedEmail, password)
         }
@@ -75,6 +83,34 @@ class AuthRepository(context: Context) {
             isBackendConfigured() -> loginWithBackend(normalizedEmail, password)
             shouldUseFirebase() -> loginWithFirebase(normalizedEmail, password)
             else -> loginLocal(normalizedEmail, password)
+        }
+    }
+
+    suspend fun requestEmailCode(email: String, purpose: String) {
+        val normalizedEmail = email.normalizeEmail()
+        validateEmail(normalizedEmail)
+        require(isBackendConfigured()) { "邮箱验证码需要先启用国内后端账号服务" }
+        val result = withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
+            requireNotNull(authApiClient) { "国内后端地址未配置" }
+                .requestEmailCode(normalizedEmail, purpose)
+        }
+        dataStore.edit { preferences ->
+            preferences[AUTH_NOTICE] = result.message
+        }
+        require(result.emailSent) { result.message }
+    }
+
+    suspend fun loginWithEmailCode(email: String, code: String) {
+        val normalizedEmail = email.normalizeEmail()
+        validateEmail(normalizedEmail)
+        require(code.trim().matches(Regex("^\\d{6}$"))) { "请输入 6 位邮箱验证码" }
+        require(isBackendConfigured()) { "邮箱验证码登录需要先启用国内后端账号服务" }
+        val result = withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
+            requireNotNull(authApiClient) { "国内后端地址未配置" }
+                .loginWithEmailCode(normalizedEmail, code.trim())
+        }
+        dataStore.edit { preferences ->
+            saveBackendSession(preferences, result)
         }
     }
 
@@ -210,11 +246,18 @@ class AuthRepository(context: Context) {
         }
     }
 
-    private suspend fun registerWithBackend(email: String, password: String) {
+    private suspend fun registerWithBackend(
+        email: String,
+        password: String,
+        accountName: String,
+        verificationCode: String
+    ) {
         val snapshot = dataStore.data.first()
         enforceRegisterRateLimit(snapshot[REGISTER_WINDOW_START], snapshot[REGISTER_COUNT])
+        require(verificationCode.trim().matches(Regex("^\\d{6}$"))) { "请输入 6 位邮箱验证码" }
         val result = withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
-            requireNotNull(authApiClient) { "国内后端地址未配置" }.register(email, password)
+            requireNotNull(authApiClient) { "国内后端地址未配置" }
+                .register(email, password, accountName, verificationCode.trim())
         }
         dataStore.edit { preferences ->
             recordRegisterAttempt(preferences)

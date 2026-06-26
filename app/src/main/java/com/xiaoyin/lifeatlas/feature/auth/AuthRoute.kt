@@ -104,9 +104,13 @@ fun AuthRoute(
         } else {
             AuthFormCard(
                 uiState = uiState,
+                onAccountNameChange = viewModel::onAccountNameChange,
                 onEmailChange = viewModel::onEmailChange,
+                onVerificationCodeChange = viewModel::onVerificationCodeChange,
                 onPasswordChange = viewModel::onPasswordChange,
                 onConfirmPasswordChange = viewModel::onConfirmPasswordChange,
+                onLoginMethodChange = viewModel::switchLoginMethod,
+                onSendEmailCode = viewModel::sendEmailCode,
                 onSubmit = { viewModel.submit(onSuccess = onContinue) },
                 onSwitchMode = viewModel::switchMode,
                 onForgotPassword = viewModel::sendPasswordResetEmail,
@@ -267,9 +271,13 @@ private fun AccountDangerZone(onClearLocalAccount: () -> Unit) {
 @Composable
 private fun AuthFormCard(
     uiState: AuthUiState,
+    onAccountNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
+    onVerificationCodeChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onConfirmPasswordChange: (String) -> Unit,
+    onLoginMethodChange: (AuthLoginMethod) -> Unit,
+    onSendEmailCode: () -> Unit,
     onSubmit: () -> Unit,
     onSwitchMode: () -> Unit,
     onForgotPassword: () -> Unit,
@@ -322,7 +330,33 @@ private fun AuthFormCard(
                 )
             }
 
+            if (!uiState.isRegisterMode) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AuthModeChip(
+                        selected = uiState.loginMethod == AuthLoginMethod.EmailCode,
+                        text = "验证码登录",
+                        onClick = { onLoginMethodChange(AuthLoginMethod.EmailCode) }
+                    )
+                    AuthModeChip(
+                        selected = uiState.loginMethod == AuthLoginMethod.Password,
+                        text = "密码登录",
+                        onClick = { onLoginMethodChange(AuthLoginMethod.Password) }
+                    )
+                }
+            }
+
             SecurityStatusText(uiState = uiState)
+
+            if (uiState.isRegisterMode) {
+                OutlinedTextField(
+                    value = uiState.accountName,
+                    onValueChange = onAccountNameChange,
+                    label = { Text("账号名") },
+                    leadingIcon = { Icon(Icons.Outlined.VerifiedUser, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             OutlinedTextField(
                 value = uiState.email,
@@ -333,16 +367,40 @@ private fun AuthFormCard(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
             )
-            OutlinedTextField(
-                value = uiState.password,
-                onValueChange = onPasswordChange,
-                label = { Text("密码") },
-                leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
-            )
+
+            if (uiState.isRegisterMode || uiState.loginMethod == AuthLoginMethod.EmailCode) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = uiState.verificationCode,
+                        onValueChange = onVerificationCodeChange,
+                        label = { Text("邮箱验证码") },
+                        leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedButton(
+                        onClick = onSendEmailCode,
+                        enabled = !uiState.isSendingCode,
+                        modifier = Modifier.height(56.dp)
+                    ) {
+                        Text(if (uiState.isSendingCode) "发送中" else "获取验证码")
+                    }
+                }
+            }
+
+            if (uiState.isRegisterMode || uiState.loginMethod == AuthLoginMethod.Password) {
+                OutlinedTextField(
+                    value = uiState.password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("密码") },
+                    leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                )
+            }
             if (uiState.isRegisterMode) {
                 OutlinedTextField(
                     value = uiState.confirmPassword,
@@ -369,6 +427,7 @@ private fun AuthFormCard(
                     when {
                         uiState.isLoading -> "处理中..."
                         uiState.isRegisterMode -> "注册并登录"
+                        uiState.loginMethod == AuthLoginMethod.EmailCode -> "验证码登录"
                         else -> "登录"
                     },
                     fontWeight = FontWeight.Black

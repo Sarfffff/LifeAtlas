@@ -2,6 +2,7 @@ package com.xiaoyin.lifeatlas.core.auth
 
 import java.io.BufferedReader
 import java.io.OutputStreamWriter
+import java.net.SocketException
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -18,12 +19,22 @@ class AuthApiClient(
         encodeDefaults = true
     }
 
-    suspend fun register(email: String, password: String): AuthApiSession {
+    suspend fun requestEmailCode(email: String, purpose: String): AuthApiMailResult {
+        return post<AuthApiMailResult>(
+            path = "/api/auth/email/code/request",
+            bodyText = json.encodeToString(
+                AuthApiEmailCodeRequest.serializer(),
+                AuthApiEmailCodeRequest(email, purpose)
+            )
+        )
+    }
+
+    suspend fun register(email: String, password: String, accountName: String, code: String): AuthApiSession {
         return post<AuthApiSession>(
             path = "/api/auth/register",
             bodyText = json.encodeToString(
-                AuthApiEmailPasswordRequest.serializer(),
-                AuthApiEmailPasswordRequest(email, password)
+                AuthApiRegisterRequest.serializer(),
+                AuthApiRegisterRequest(email, password, accountName, code)
             )
         )
     }
@@ -34,6 +45,16 @@ class AuthApiClient(
             bodyText = json.encodeToString(
                 AuthApiEmailPasswordRequest.serializer(),
                 AuthApiEmailPasswordRequest(email, password)
+            )
+        )
+    }
+
+    suspend fun loginWithEmailCode(email: String, code: String): AuthApiSession {
+        return post<AuthApiSession>(
+            path = "/api/auth/login/code",
+            bodyText = json.encodeToString(
+                AuthApiEmailCodeLoginRequest.serializer(),
+                AuthApiEmailCodeLoginRequest(email, code)
             )
         )
     }
@@ -91,6 +112,8 @@ class AuthApiClient(
                 } else {
                     json.decodeFromString(responseText)
                 }
+            }.recoverCatching { error ->
+                throw error.toUserFacingNetworkError()
             }.also {
                 connection.disconnect()
             }.getOrThrow()
@@ -105,6 +128,13 @@ class AuthApiClient(
     private companion object {
         const val REQUEST_TIMEOUT_MS = 15_000
     }
+}
+
+private fun Throwable.toUserFacingNetworkError(): Throwable {
+    if (this is SocketException && message?.contains("reset", ignoreCase = true) == true) {
+        return IllegalStateException("无法连接账号服务：连接被重置。当前域名可能未完成备案或 HTTPS 入口未配置，请先使用本地模式，或临时把后端地址切到可访问的服务器入口。")
+    }
+    return this
 }
 
 @Serializable
@@ -128,6 +158,26 @@ data class AuthApiMailResult(
 private data class AuthApiEmailPasswordRequest(
     val email: String,
     val password: String
+)
+
+@Serializable
+private data class AuthApiRegisterRequest(
+    val email: String,
+    val password: String,
+    val accountName: String,
+    val code: String
+)
+
+@Serializable
+private data class AuthApiEmailCodeRequest(
+    val email: String,
+    val purpose: String
+)
+
+@Serializable
+private data class AuthApiEmailCodeLoginRequest(
+    val email: String,
+    val code: String
 )
 
 @Serializable

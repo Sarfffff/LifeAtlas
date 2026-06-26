@@ -14,11 +14,15 @@ import kotlinx.coroutines.launch
 
 data class AuthUiState(
     val session: AuthSession = AuthSession(),
+    val accountName: String = "",
     val email: String = "",
+    val verificationCode: String = "",
     val password: String = "",
     val confirmPassword: String = "",
     val isRegisterMode: Boolean = false,
+    val loginMethod: AuthLoginMethod = AuthLoginMethod.EmailCode,
     val isLoading: Boolean = false,
+    val isSendingCode: Boolean = false,
     val firebaseConfigured: Boolean = false,
     val backendConfigured: Boolean = false,
     val remoteAuthConfigured: Boolean = false,
@@ -26,6 +30,11 @@ data class AuthUiState(
     val message: String? = null,
     val error: String? = null
 )
+
+enum class AuthLoginMethod {
+    EmailCode,
+    Password
+}
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val authRepository = AuthRepository(application)
@@ -45,8 +54,16 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun onAccountNameChange(value: String) {
+        formState.update { it.copy(accountName = value, error = null, message = null) }
+    }
+
     fun onEmailChange(value: String) {
         formState.update { it.copy(email = value, error = null, message = null) }
+    }
+
+    fun onVerificationCodeChange(value: String) {
+        formState.update { it.copy(verificationCode = value.filter(Char::isDigit).take(6), error = null, message = null) }
     }
 
     fun onPasswordChange(value: String) {
@@ -64,16 +81,75 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 error = null,
                 message = null,
                 password = "",
-                confirmPassword = ""
+                confirmPassword = "",
+                verificationCode = ""
             )
+        }
+    }
+
+    fun switchLoginMethod(method: AuthLoginMethod) {
+        formState.update {
+            it.copy(
+                loginMethod = method,
+                error = null,
+                message = null,
+                password = "",
+                verificationCode = ""
+            )
+        }
+    }
+
+    fun sendEmailCode() {
+        val state = formState.value
+        val purpose = if (state.isRegisterMode) "register" else "login"
+        viewModelScope.launch {
+            if (state.email.isBlank()) {
+                formState.update { it.copy(error = "请先填写邮箱", message = null) }
+                return@launch
+            }
+            formState.update { it.copy(isSendingCode = true, error = null, message = null) }
+            runCatching {
+                authRepository.requestEmailCode(state.email, purpose)
+            }.onSuccess {
+                val notice = authRepository.session.first().authNotice
+                formState.update {
+                    it.copy(
+                        isSendingCode = false,
+                        message = notice ?: "验证码已发送，请检查邮箱收件箱或垃圾邮件。",
+                        error = null
+                    )
+                }
+            }.onFailure { error ->
+                formState.update {
+                    it.copy(
+                        isSendingCode = false,
+                        error = error.message ?: "验证码发送失败",
+                        message = null
+                    )
+                }
+            }
         }
     }
 
     fun submit(onSuccess: () -> Unit = {}) {
         val state = formState.value
         viewModelScope.launch {
-            if (state.email.isBlank() || state.password.isBlank()) {
-                formState.update { it.copy(error = "请先填写邮箱和密码", message = null) }
+            if (state.email.isBlank()) {
+                formState.update { it.copy(error = "请先填写邮箱", message = null) }
+                return@launch
+            }
+            if (state.isRegisterMode && state.accountName.isBlank()) {
+                formState.update { it.copy(error = "请先填写账号名", message = null) }
+                return@launch
+            }
+            val requiresCode = state.isRegisterMode || state.loginMethod == AuthLoginMethod.EmailCode
+            val requiresPassword = state.isRegisterMode || state.loginMethod == AuthLoginMethod.Password
+            if (requiresCode && state.verificationCode.length != 6) {
+                formState.update { it.copy(error = "请输入 6 位邮箱验证码", message = null) }
+                return@launch
+            }
+            if (requiresPassword && state.password.isBlank()) {
+                formState.update { it.copy(error = "请先填写密码", message = null) }
                 return@launch
             }
             if (state.isRegisterMode && state.confirmPassword.isBlank()) {
@@ -83,7 +159,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             formState.update { it.copy(isLoading = true, error = null, message = null) }
             runCatching {
                 if (state.isRegisterMode) {
-                    authRepository.register(state.email, state.password, state.confirmPassword)
+                    authRepository.register(
+                        email = state.email,
+                        password = state.password,
+                        confirmPassword = state.confirmPassword,
+                        accountName = state.accountName,
+                        verificationCode = state.verificationCode
+                    )
+                } else if (state.loginMethod == AuthLoginMethod.EmailCode) {
+                    authRepository.loginWithEmailCode(state.email, state.verificationCode)
                 } else {
                     authRepository.login(state.email, state.password)
                 }
@@ -94,6 +178,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         isLoading = false,
                         password = "",
                         confirmPassword = "",
+                        verificationCode = "",
                         message = if (state.isRegisterMode) {
                             if (!authNotice.isNullOrBlank()) {
                                 "注册成功。$authNotice"
