@@ -253,6 +253,8 @@ fun MapRoute(
             MapLightSheetV2(
                 record = selectedRecord,
                 photo = uiState.firstPhotosByRecordId[selectedRecord.id],
+                records = records,
+                litCities = uiState.litCities,
                 litCityCount = uiState.litCities.size,
                 recordCount = records.size,
                 currentCity = selectedCity ?: selectedRecord.mapCityKey(),
@@ -369,6 +371,14 @@ private fun WarmLifeAtlasPage(
                     .height(330.dp)
             ) {
                 WarmRouteLine(modifier = Modifier.align(Alignment.Center))
+                WarmModeStageOverlay(
+                    selectedMode = selectedMode,
+                    records = records,
+                    litCities = litCities,
+                    selectedIndex = selectedIndex,
+                    onMarkerClick = onMarkerClick,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                )
                 records.take(6).forEachIndexed { index, record ->
                     WarmCityNode(
                         title = record.mapCityKey(),
@@ -470,6 +480,157 @@ private fun WarmCityNode(
                 .background(WildernessPaper.copy(alpha = 0.78f))
                 .padding(horizontal = 7.dp, vertical = 2.dp)
         )
+    }
+}
+
+@Composable
+private fun WarmModeStageOverlay(
+    selectedMode: MapLightMode,
+    records: List<MemoryRecord>,
+    litCities: List<String>,
+    selectedIndex: Int,
+    onMarkerClick: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    when (selectedMode) {
+        MapLightMode.World -> WarmModeMiniPanel(
+            title = "世界视野",
+            body = "从 ${litCities.size} 座城市开始，把人生地图慢慢铺到更远的地方。",
+            accent = WildernessSky,
+            modifier = modifier
+        ) {
+            WarmMiniStats(
+                firstLabel = "记忆",
+                firstValue = records.size.toString(),
+                secondLabel = "城市",
+                secondValue = litCities.size.toString()
+            )
+        }
+        MapLightMode.City -> WarmModeMiniPanel(
+            title = "已点亮城市",
+            body = if (litCities.isEmpty()) "新增一段带地点的记忆后，城市会在这里亮起。" else litCities.take(4).joinToString(" · "),
+            accent = WildernessMeadow,
+            modifier = modifier
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                litCities.take(3).forEach { city ->
+                    WarmSmallPill(text = city)
+                }
+            }
+        }
+        MapLightMode.Trail -> WarmModeMiniPanel(
+            title = "生命轨迹",
+            body = records
+                .sortedBy { it.recordTime }
+                .takeLast(3)
+                .joinToString(" → ") { it.mapCityKey() }
+                .ifBlank { "记录会按时间串成一条可以回看的路线。" },
+            accent = WildernessWildflower,
+            modifier = modifier
+        ) {
+            records.sortedBy { it.recordTime }.takeLast(3).forEachIndexed { index, record ->
+                WarmTrailMiniRow(step = index + 1, record = record, onClick = {
+                    val realIndex = records.indexOf(record).coerceAtLeast(0)
+                    onMarkerClick(realIndex)
+                })
+            }
+        }
+        MapLightMode.Place -> {
+            val record = records.getOrNull(selectedIndex)
+            WarmModeMiniPanel(
+                title = "当前地点",
+                body = record?.let { "${it.title} · ${it.locationName ?: it.mapCityKey()}" } ?: "点击地图上的光点，查看那一处记忆。",
+                accent = WildernessCoral,
+                modifier = modifier
+            ) {
+                record?.let {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(it.dateText(), style = MaterialTheme.typography.labelMedium, color = WildernessMuted)
+                        ImportanceStars(value = it.importance.toFloat(), starSize = 13.dp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WarmModeMiniPanel(
+    title: String,
+    body: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit = {}
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(WildernessPaper.copy(alpha = 0.9f))
+            .border(1.dp, accent.copy(alpha = 0.32f), RoundedCornerShape(22.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(accent)
+            )
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
+        }
+        Text(body, style = MaterialTheme.typography.bodySmall, color = WildernessMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        content()
+    }
+}
+
+@Composable
+private fun WarmMiniStats(
+    firstLabel: String,
+    firstValue: String,
+    secondLabel: String,
+    secondValue: String
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        WarmSmallPill(text = "$firstLabel $firstValue")
+        WarmSmallPill(text = "$secondLabel $secondValue")
+    }
+}
+
+@Composable
+private fun WarmSmallPill(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Black,
+        color = WildernessTeal,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(WildernessMeadow.copy(alpha = 0.34f))
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    )
+}
+
+@Composable
+private fun WarmTrailMiniRow(step: Int, record: MemoryRecord, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .background(WildernessCream.copy(alpha = 0.72f))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(step.toString(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(record.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${record.mapCityKey()} · ${record.dateText()}", style = MaterialTheme.typography.labelSmall, color = WildernessMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -892,6 +1053,8 @@ private fun MapLightCollapsedBar(
 private fun MapLightSheetV2(
     record: MemoryRecord,
     photo: Photo?,
+    records: List<MemoryRecord>,
+    litCities: List<String>,
     litCityCount: Int,
     recordCount: Int,
     currentCity: String,
@@ -958,6 +1121,16 @@ private fun MapLightSheetV2(
                 MapLightMode.Place -> MapLightPlaceCard(record = record, photo = photo)
             }
 
+            MapLightModeDetailStrip(
+                selectedMode = selectedMode,
+                records = records,
+                litCities = litCities,
+                currentRecord = record,
+                currentCity = currentCity,
+                onRecordClick = { onDetailClick() },
+                onCityDetailClick = onCityDetailClick
+            )
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(
                     onClick = onFavoriteClick,
@@ -1018,6 +1191,106 @@ private fun MapLightSummaryBlock(
         TextButton(onClick = onActionClick) {
             Text(actionText, fontWeight = FontWeight.Black, color = WildernessTeal)
         }
+    }
+}
+
+@Composable
+private fun MapLightModeDetailStrip(
+    selectedMode: MapLightMode,
+    records: List<MemoryRecord>,
+    litCities: List<String>,
+    currentRecord: MemoryRecord,
+    currentCity: String,
+    onRecordClick: (MemoryRecord) -> Unit,
+    onCityDetailClick: () -> Unit
+) {
+    when (selectedMode) {
+        MapLightMode.World -> Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(WildernessSky.copy(alpha = 0.18f))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MapLightInfoChip(label = "最近点亮", value = currentCity)
+            MapLightInfoChip(label = "可回看", value = "${records.size} 段")
+        }
+        MapLightMode.City -> {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(litCities.size) { index ->
+                    val city = litCities[index]
+                    TextButton(onClick = onCityDetailClick) {
+                        Text(
+                            text = city,
+                            fontWeight = FontWeight.Black,
+                            color = if (city == currentCity) WildernessTeal else WildernessMuted,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+        MapLightMode.Trail -> Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(WildernessCream.copy(alpha = 0.74f))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            records.sortedBy { it.recordTime }.takeLast(3).forEachIndexed { index, record ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onRecordClick(record) }
+                        .padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(if (record.id == currentRecord.id) WildernessTeal else WildernessMeadow),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("${index + 1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = WildernessPaper)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(record.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${record.mapCityKey()} · ${record.dateText()}", style = MaterialTheme.typography.labelSmall, color = WildernessMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+        MapLightMode.Place -> Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(WildernessWildflower.copy(alpha = 0.14f))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("地点强度", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal)
+            ImportanceStars(value = currentRecord.importance.toFloat(), starSize = 15.dp)
+        }
+    }
+}
+
+@Composable
+private fun MapLightInfoChip(label: String, value: String) {
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(WildernessPaper.copy(alpha = 0.72f))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = WildernessMuted)
+        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = WildernessTeal, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
