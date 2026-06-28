@@ -32,11 +32,18 @@ data class AuthSession(
     val loginLockedUntil: Long? = null
 )
 
+enum class SocialAuthProvider(val id: String, val displayName: String) {
+    WeChat("wechat", "微信"),
+    QQ("qq", "QQ")
+}
+
 class AuthRepository(context: Context) {
     private val appContext = context.applicationContext
     private val dataStore = appContext.authDataStore
     private val authApiBaseUrl = BuildConfig.AUTH_API_BASE_URL.trim()
     private val authProvider = BuildConfig.AUTH_PROVIDER.trim().lowercase()
+    private val wechatAppId = BuildConfig.AUTH_WECHAT_APP_ID.trim()
+    private val qqAppId = BuildConfig.AUTH_QQ_APP_ID.trim()
     private val authApiClient = authApiBaseUrl.takeIf { it.isNotBlank() }?.let(::AuthApiClient)
 
     val session: Flow<AuthSession> = dataStore.data.map { preferences ->
@@ -219,6 +226,23 @@ class AuthRepository(context: Context) {
     fun isFirebaseActive(): Boolean = shouldUseFirebase()
 
     fun isRemoteAuthConfigured(): Boolean = isBackendConfigured() || shouldUseFirebase()
+
+    fun isSocialLoginConfigured(provider: SocialAuthProvider): Boolean {
+        return when (provider) {
+            SocialAuthProvider.WeChat -> wechatAppId.isNotBlank()
+            SocialAuthProvider.QQ -> qqAppId.isNotBlank()
+        }
+    }
+
+    suspend fun loginWithSocialProvider(provider: SocialAuthProvider) {
+        require(isSocialLoginConfigured(provider)) {
+            "${provider.displayName}登录需要先配置开放平台 AppID。请在 local.properties 中填写 ${provider.localPropertyName()}。"
+        }
+        require(isBackendConfigured()) {
+            "${provider.displayName}登录需要国内后端完成授权码换取登录态。备案和后端 OAuth 接口完成前，请先使用邮箱或本地模式。"
+        }
+        error("${provider.displayName}登录入口已预留。下一步需要接入官方 SDK 获取授权码，再调用后端 OAuth 接口。")
+    }
 
     fun authModeLabel(): String = when {
         isBackendConfigured() -> "国内后端账号"
@@ -473,6 +497,11 @@ class AuthRepository(context: Context) {
     }
 
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+    private fun SocialAuthProvider.localPropertyName(): String = when (this) {
+        SocialAuthProvider.WeChat -> "lifeatlas.auth.wechatAppId"
+        SocialAuthProvider.QQ -> "lifeatlas.auth.qqAppId"
+    }
 
     private companion object {
         val EMAIL = stringPreferencesKey("email")

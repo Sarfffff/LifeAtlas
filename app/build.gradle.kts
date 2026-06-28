@@ -42,11 +42,15 @@ android {
         val amapApiKey = localProperty("lifeatlas.amap.apiKey")
         val authApiBaseUrl = localProperty("lifeatlas.auth.baseUrl")
         val authProvider = localProperty("lifeatlas.auth.provider").ifBlank { "local" }
+        val authWechatAppId = localProperty("lifeatlas.auth.wechatAppId")
+        val authQqAppId = localProperty("lifeatlas.auth.qqAppId")
         manifestPlaceholders["AMAP_API_KEY"] = amapApiKey
         buildConfigField("String", "AMAP_API_KEY", "\"${amapApiKey.escapeForBuildConfig()}\"")
         buildConfigField("boolean", "AMAP_CONFIGURED", amapApiKey.isNotBlank().toString())
         buildConfigField("String", "AUTH_API_BASE_URL", "\"${authApiBaseUrl.escapeForBuildConfig()}\"")
         buildConfigField("String", "AUTH_PROVIDER", "\"${authProvider.escapeForBuildConfig()}\"")
+        buildConfigField("String", "AUTH_WECHAT_APP_ID", "\"${authWechatAppId.escapeForBuildConfig()}\"")
+        buildConfigField("String", "AUTH_QQ_APP_ID", "\"${authQqAppId.escapeForBuildConfig()}\"")
 
         javaCompileOptions {
             annotationProcessorOptions {

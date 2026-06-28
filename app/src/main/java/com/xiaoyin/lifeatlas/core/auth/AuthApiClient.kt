@@ -87,6 +87,16 @@ class AuthApiClient(
         )
     }
 
+    suspend fun loginWithOAuth(provider: String, code: String): AuthApiSession {
+        return post<AuthApiSession>(
+            path = "/api/auth/oauth/$provider",
+            bodyText = json.encodeToString(
+                AuthApiOAuthLoginRequest.serializer(),
+                AuthApiOAuthLoginRequest(code)
+            )
+        )
+    }
+
     private suspend inline fun <reified T> post(
         path: String,
         bodyText: String,
@@ -200,6 +210,11 @@ private data class AuthApiPasswordResetConfirmRequest(
     val email: String,
     val code: String,
     val password: String
+)
+
+@Serializable
+private data class AuthApiOAuthLoginRequest(
+    val code: String
 )
 
 @Serializable

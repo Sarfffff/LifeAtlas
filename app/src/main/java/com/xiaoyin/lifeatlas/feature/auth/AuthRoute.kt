@@ -52,6 +52,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.R
+import com.xiaoyin.lifeatlas.core.auth.SocialAuthProvider
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessCream
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMuted
@@ -112,6 +113,7 @@ fun AuthRoute(
                 onLoginMethodChange = viewModel::switchLoginMethod,
                 onSendEmailCode = viewModel::sendEmailCode,
                 onSubmit = { viewModel.submit(onSuccess = onContinue) },
+                onSocialLogin = { provider -> viewModel.loginWithSocialProvider(provider, onSuccess = onContinue) },
                 onSwitchMode = viewModel::switchMode,
                 onForgotPassword = viewModel::switchPasswordResetMode,
                 onSkip = { viewModel.skipLogin(onSkipped = onContinue) }
@@ -279,6 +281,7 @@ private fun AuthFormCard(
     onLoginMethodChange: (AuthLoginMethod) -> Unit,
     onSendEmailCode: () -> Unit,
     onSubmit: () -> Unit,
+    onSocialLogin: (SocialAuthProvider) -> Unit,
     onSwitchMode: () -> Unit,
     onForgotPassword: () -> Unit,
     onSkip: () -> Unit
@@ -434,6 +437,13 @@ private fun AuthFormCard(
                 )
             }
 
+            SocialLoginRow(
+                wechatConfigured = uiState.wechatLoginConfigured,
+                qqConfigured = uiState.qqLoginConfigured,
+                enabled = !uiState.isLoading,
+                onSocialLogin = onSocialLogin
+            )
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { if (uiState.isPasswordResetMode) onForgotPassword() else onSwitchMode() }) {
                     Text(if (uiState.isRegisterMode) "已有账号，去登录" else "没有账号，去注册")
@@ -446,6 +456,77 @@ private fun AuthFormCard(
                 Text("跳过，继续本地使用")
             }
         }
+    }
+}
+
+@Composable
+private fun SocialLoginRow(
+    wechatConfigured: Boolean,
+    qqConfigured: Boolean,
+    enabled: Boolean,
+    onSocialLogin: (SocialAuthProvider) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(WildernessMeadow.copy(alpha = 0.42f))
+            )
+            Text("其他方式", style = MaterialTheme.typography.labelMedium, color = WildernessMuted)
+            Spacer(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(WildernessMeadow.copy(alpha = 0.42f))
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SocialLoginButton(
+                text = "微信",
+                configured = wechatConfigured,
+                enabled = enabled,
+                onClick = { onSocialLogin(SocialAuthProvider.WeChat) },
+                modifier = Modifier.weight(1f)
+            )
+            SocialLoginButton(
+                text = "QQ",
+                configured = qqConfigured,
+                enabled = enabled,
+                onClick = { onSocialLogin(SocialAuthProvider.QQ) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (!wechatConfigured || !qqConfigured) {
+            Text(
+                text = "第三方登录入口已整理好；配置开放平台 AppID 和后端 OAuth 后即可切换为真实登录。",
+                style = MaterialTheme.typography.bodySmall,
+                color = WildernessMuted
+            )
+        }
+    }
+}
+
+@Composable
+private fun SocialLoginButton(
+    text: String,
+    configured: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(44.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Text(
+            text = if (configured) text else "$text · 待配置",
+            fontWeight = FontWeight.Black,
+            maxLines = 1
+        )
     }
 }
 

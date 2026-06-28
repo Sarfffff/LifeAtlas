@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaoyin.lifeatlas.core.auth.AuthRepository
 import com.xiaoyin.lifeatlas.core.auth.AuthSession
+import com.xiaoyin.lifeatlas.core.auth.SocialAuthProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -26,6 +27,8 @@ data class AuthUiState(
     val isSendingCode: Boolean = false,
     val firebaseConfigured: Boolean = false,
     val backendConfigured: Boolean = false,
+    val wechatLoginConfigured: Boolean = false,
+    val qqLoginConfigured: Boolean = false,
     val remoteAuthConfigured: Boolean = false,
     val authModeLabel: String = "本地账号",
     val message: String? = null,
@@ -48,6 +51,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     session = session,
                     firebaseConfigured = authRepository.isFirebaseActive(),
                     backendConfigured = authRepository.isBackendConfigured(),
+                    wechatLoginConfigured = authRepository.isSocialLoginConfigured(SocialAuthProvider.WeChat),
+                    qqLoginConfigured = authRepository.isSocialLoginConfigured(SocialAuthProvider.QQ),
                     remoteAuthConfigured = authRepository.isRemoteAuthConfigured(),
                     authModeLabel = authRepository.authModeLabel()
                 )
@@ -230,6 +235,32 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }.onFailure { error ->
                 formState.update { it.copy(isLoading = false, error = error.message ?: "操作失败") }
+            }
+        }
+    }
+
+    fun loginWithSocialProvider(provider: SocialAuthProvider, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            formState.update { it.copy(isLoading = true, error = null, message = null) }
+            runCatching {
+                authRepository.loginWithSocialProvider(provider)
+            }.onSuccess {
+                formState.update {
+                    it.copy(
+                        isLoading = false,
+                        message = "${provider.displayName}登录成功",
+                        error = null
+                    )
+                }
+                onSuccess()
+            }.onFailure { error ->
+                formState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message ?: "${provider.displayName}登录暂不可用",
+                        message = null
+                    )
+                }
             }
         }
     }
