@@ -298,14 +298,34 @@ async function trySendMail(operation, successMessage) {
     await operation();
     return { sent: true, message: successMessage };
   } catch (error) {
-    console.error("Mail delivery failed:", error.message);
+    console.error("Mail delivery failed:", error.message, error.code || "", error.response || "");
     return {
       sent: false,
-      message: "账号操作已完成，但邮件服务暂未配置成功。请稍后在账号与安全页重新发送邮件。"
+      message: `验证码邮件发送失败：${toMailFailureMessage(error)}`
     };
   }
 }
 
+function toMailFailureMessage(error) {
+  const message = String(error?.message || "");
+  const code = String(error?.code || "");
+  const response = String(error?.response || "");
+  const detail = `${code} ${message} ${response}`.toLowerCase();
+
+  if (message.includes("SMTP is not configured")) {
+    return "服务器 SMTP 参数未配置完整，请检查 SMTP_HOST、SMTP_USER、SMTP_PASS 和 SMTP_FROM。";
+  }
+  if (detail.includes("auth") || detail.includes("login") || detail.includes("535") || detail.includes("invalid user")) {
+    return "SMTP 登录失败，请确认阿里云邮件推送的 SMTP 密码，不是邮箱登录密码。";
+  }
+  if (detail.includes("sender") || detail.includes("from") || detail.includes("mail from") || detail.includes("spf") || detail.includes("dkim")) {
+    return "发信地址或域名验证未通过，请确认 mail.lifeatlas.cn 的发信地址、SPF、DKIM、MX 已验证通过。";
+  }
+  if (detail.includes("timeout") || detail.includes("etimedout") || detail.includes("econnrefused") || detail.includes("enotfound")) {
+    return "服务器无法连接阿里云 SMTP，请检查 465 端口、服务器安全组和网络。";
+  }
+  return "请在服务器执行 journalctl -u lifeatlas-auth -f 查看 Mail delivery failed 详细日志。";
+}
 function ensureSmtpConfigured() {
   const required = ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"];
   const missing = required.filter((key) => !process.env[key] || process.env[key].startsWith("replace-with"));
