@@ -124,11 +124,13 @@ fun AuthRoute(
             AccountDangerZone(onClearLocalAccount = { showClearAccountConfirm = true })
         }
 
-        uiState.message?.let {
-            Text(text = it, style = MaterialTheme.typography.bodyMedium, color = WildernessTeal)
-        }
-        uiState.error?.let {
-            Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        if (uiState.session.isLoggedIn) {
+            uiState.message?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = WildernessTeal)
+            }
+            uiState.error?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
         }
 
         Card(
