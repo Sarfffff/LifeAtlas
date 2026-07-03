@@ -152,7 +152,7 @@ class AuthApiClient(
 
 private fun Throwable.toUserFacingNetworkError(): Throwable {
     if (this is SocketException && message?.contains("reset", ignoreCase = true) == true) {
-        return IllegalStateException("无法连接账号服务：连接被重置。当前域名可能未完成备案或 HTTPS 入口未配置，请先使用本地模式，或临时把后端地址切到可访问的服务器入口。")
+        return IllegalStateException("无法连接账号服务：连接被重置。请检查 HTTPS 证书、Nginx 反向代理、服务器防火墙和账号服务是否正常运行。")
     }
     return this
 }

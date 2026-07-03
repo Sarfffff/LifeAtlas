@@ -1,15 +1,19 @@
 # 岁迹认证后端
 
-这是给国内用户准备的轻量认证服务雏形，用来替代 Firebase 作为默认登录注册链路。
+这是给国内用户准备的轻量认证服务，用来替代 Firebase 作为默认登录注册链路。
 
 ## 当前接口
 
-- `POST /api/auth/register`：邮箱密码注册，注册后发送验证邮件。
-- `POST /api/auth/login`：邮箱密码登录，返回 `accessToken`。
-- `POST /api/auth/email/verification/request`：重新发送验证邮件，需要 `Bearer accessToken`。
-- `GET /api/auth/email/verify`：邮箱验证落地页。
-- `POST /api/auth/password/reset/request`：发送密码重置邮件预留接口。
-- `GET /health`：健康检查。
+- `GET /health`：健康检查，返回服务状态和 SMTP 配置状态。
+- `POST /api/auth/email/code/request`：发送邮箱验证码。
+- `POST /api/auth/register`：邮箱验证码 + 密码注册。
+- `POST /api/auth/login`：邮箱密码登录。
+- `POST /api/auth/login/code`：邮箱验证码登录。
+- `POST /api/auth/email/verification/request`：登录后重新发送邮箱验证码。
+- `POST /api/auth/password/reset/request`：发送密码重置验证码。
+- `POST /api/auth/password/reset/confirm`：验证码确认并重置密码。
+- `POST /api/auth/oauth/qq`：QQ 登录服务端接口占位。
+- `POST /api/auth/oauth/wechat`：微信登录服务端接口占位。
 
 ## 本地运行
 
@@ -21,60 +25,61 @@ npm start
 
 ## App 配置
 
-在 Android 项目的 `local.properties` 中写入：
+Android 项目的 `local.properties`：
 
 ```properties
 lifeatlas.auth.provider=backend
 lifeatlas.auth.baseUrl=https://api.lifeatlas.cn
 ```
 
-如果暂时不填，App 会继续使用本地账号，不会访问 Firebase。
-
 ## 阿里云服务器部署
 
-当前推荐服务器：
+推荐部署路径：
 
-- Ubuntu 22.04
-- 公网 IP：`47.122.124.84`
-- 后端监听：`127.0.0.1:8080`
-- 对外域名：`https://api.lifeatlas.cn`
+```bash
+/opt/lifeatlas/LifeAtlas/server
+```
 
-部署模板：
+部署/更新：
 
-- `deploy/nginx-lifeatlas.conf.example`
-- `deploy/lifeatlas-auth.service.example`
+```bash
+cd /opt/lifeatlas/LifeAtlas
+git pull
+cd server
+npm install --omit=dev
+sudo systemctl restart lifeatlas-auth
+sudo systemctl status lifeatlas-auth
+curl https://api.lifeatlas.cn/health
+```
 
-具体步骤见项目文档《阿里云服务器部署清单》。
+## SMTP 配置
 
-## 后续升级点
+服务器 `.env`：
 
-- 将 `data/users.json` 替换为 MySQL 或 PostgreSQL。
-- 增加邮箱验证码有效期和重试冷却。
-- 增加密码重置页面。
-- 增加阿里云短信验证码接口。
-- 增加云同步数据表、媒体文件上传和冲突合并策略。
-## 2026-06-26 验证码登录接口
+```env
+SMTP_HOST=smtpdm.aliyun.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=no-reply@mail.lifeatlas.cn
+SMTP_PASS=阿里云邮件推送SMTP密码
+SMTP_FROM="岁迹 <no-reply@mail.lifeatlas.cn>"
+```
 
-本轮新增国内邮箱验证码链路，保留原密码登录：
+健康检查中 `mailConfigured:true` 表示 SMTP 配置字段完整，不代表一定投递成功；仍需用真实邮箱收信测试。
 
-- `POST /api/auth/email/code/request`
-  - 请求体：`{"email":"user@example.com","purpose":"register"}` 或 `{"email":"user@example.com","purpose":"login"}`
-  - 作用：发送 6 位邮箱验证码，验证码 10 分钟有效。
+## 安全策略
 
-- `POST /api/auth/register`
-  - 请求体：`{"accountName":"旷野小旅人","email":"user@example.com","code":"123456","password":"abc12345"}`
-  - 作用：使用邮箱验证码注册账号，注册成功后直接返回登录态。
-
-- `POST /api/auth/login/code`
-  - 请求体：`{"email":"user@example.com","code":"123456"}`
-  - 作用：使用邮箱验证码登录已有账号。
-
-- `POST /api/auth/login`
-  - 请求体：`{"email":"user@example.com","password":"abc12345"}`
-  - 作用：保留账号密码登录。
-
-安全限制：
-
+- 验证码只保存哈希，不保存明文。
+- 验证码 10 分钟过期。
+- 验证码最多尝试 5 次。
 - 同一邮箱同一用途 1 分钟只能发送 1 次验证码。
 - 同一邮箱同一用途 1 小时最多发送 6 次验证码。
-- 验证码最多尝试 5 次，错误过多需要重新获取。
+- IP 维度限制注册、登录、验证码发送和密码重置频率。
+- 同一邮箱 + IP 连续登录失败 5 次后冷却 10 分钟。
+- 审计日志写入 `AUDIT_FILE`，默认 `./data/audit.log`。
+
+## 后续升级
+
+- 用 MySQL/PostgreSQL 替代 JSON 文件存储。
+- 第三方登录正式接入 QQ/微信官方 SDK 与服务端 openid/unionid 交换。
+- 云同步数据表、媒体上传、冲突合并和软删除。

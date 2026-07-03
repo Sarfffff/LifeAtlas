@@ -1,55 +1,101 @@
 # 备案后恢复开发 TODO
 
-记录日期：2026-06-27
+记录日期：2026-07-04
 
-当前岁迹 App 进入暂停等待阶段。备案、域名 HTTPS 入口和阿里云邮件推送稳定前，暂不继续推进真实登录注册、邮箱验证码和云同步闭环。
+## 当前状态
 
-## 恢复前检查
+- `lifeatlas.cn` 备案已通过。
+- `https://api.lifeatlas.cn/health` 已从本机验证可访问，返回 `HTTP 200`。
+- App 本地配置已指向国内后端：
 
-- 确认 `lifeatlas.cn` 备案通过。
-- 确认 `api.lifeatlas.cn/health` 在手机网络和电脑网络均可访问。
-- 确认 HTTPS 证书有效，Nginx `server_name` 覆盖 `api.lifeatlas.cn`。
-- 确认阿里云邮件推送发信域名 `mail.lifeatlas.cn` 仍为验证通过。
-- 确认服务器 `/opt/lifeatlas/LifeAtlas/server/.env` 中 SMTP 配置完整且未过期。
-- 确认 `lifeatlas-auth` 服务运行正常。
+```properties
+lifeatlas.auth.provider=backend
+lifeatlas.auth.baseUrl=https://api.lifeatlas.cn
+```
 
-## P0：真实邮箱验证码闭环
+## 本轮已完成
 
-- 注册：账号、邮箱、验证码、密码字段流程联通。
-- 登录：邮箱验证码登录和邮箱密码登录均可使用。
-- 忘记密码：发送验证码、验证验证码、重置密码。
-- 重发验证邮件：限制频率并给出明确中文提示。
-- App 内错误提示：连接重置、超时、邮箱未验证、验证码错误、验证码过期。
-- QQ 邮箱实际收信测试：收件箱、垃圾箱、延迟投递情况。
+- 后端 `/health` 增加 `mailConfigured` 字段，用于确认 SMTP 是否配置完整。
+- 后端验证码仍只保存哈希，不保存明文。
+- 后端验证码 10 分钟过期，最多尝试 5 次。
+- 后端增加 IP 维度频率限制：
+  - 验证码发送
+  - 注册
+  - 密码登录
+  - 验证码登录
+  - 忘记密码
+- 后端增加登录失败锁定：
+  - 同一邮箱 + IP 连续失败 5 次后冷却 10 分钟。
+- 后端增加审计日志：
+  - 验证码发送
+  - 注册
+  - 登录成功/失败
+  - 重置密码请求
+  - 重置密码确认
+  - 第三方登录请求
+- 后端预留 QQ/微信 OAuth 接口：
+  - `POST /api/auth/oauth/qq`
+  - `POST /api/auth/oauth/wechat`
+- App 端连接重置提示已更新，不再提示“可能未备案”，改为检查 HTTPS、Nginx、防火墙和服务状态。
 
-## P0：账号安全
+## 服务器部署操作
 
-- 后端验证码过期时间。
-- 后端邮箱/IP 频率限制。
-- 后端登录失败锁定。
-- 验证码只存哈希，不存明文。
-- 审计日志记录注册、登录、验证码发送和重置密码。
-- App 端保留“跳过，继续本地使用”的兜底入口。
+在阿里云服务器执行：
 
-## P1：云同步设计
+```bash
+cd /opt/lifeatlas/LifeAtlas
+git pull
+cd server
+npm install --omit=dev
+sudo systemctl restart lifeatlas-auth
+sudo systemctl status lifeatlas-auth
+curl https://api.lifeatlas.cn/health
+```
 
-- 设计用户、记录、照片元数据、标签、收藏、设置的云端表。
-- 确定本地 Room 与云端 ID 映射。
-- 设计冲突合并策略：本地优先、最后修改时间、软删除。
-- 确定照片同步策略：缩略图、压缩图或原图。
-- 保留完整备份包导入导出能力，避免用户被云端锁定。
+如果 `curl` 返回包含：
 
-## P1：发布准备
+```json
+{"ok":true,"service":"LifeAtlas Auth Server","mailConfigured":true}
+```
 
-- Release 签名配置。
-- 隐私政策正式版。
-- 用户协议草案。
-- 应用市场图标、截图和介绍文案。
-- 首轮真机回归测试清单。
+说明新版后端和 SMTP 都已经生效。
 
-## 与个人网站的衔接
+如果 `mailConfigured:false`，检查：
 
-- 个人网站可展示岁迹项目介绍、截图、开发日志和下载入口。
-- 网站不要直接读取 App 本地数据。
-- 后续如需要 Web 端查看岁迹记录，应等账号与云同步完成后再设计安全 API。
-- 博客项目建议使用独立仓库和独立目录，避免污染 Android App 工程。
+```bash
+sudo nano /opt/lifeatlas/LifeAtlas/server/.env
+sudo systemctl restart lifeatlas-auth
+journalctl -u lifeatlas-auth -f
+```
+
+服务器 `.env` 至少需要：
+
+```env
+PORT=8080
+APP_BASE_URL=https://api.lifeatlas.cn
+JWT_SECRET=一串足够长的随机密钥
+DATA_FILE=./data/users.json
+AUDIT_FILE=./data/audit.log
+SMTP_HOST=smtpdm.aliyun.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=no-reply@mail.lifeatlas.cn
+SMTP_PASS=阿里云邮件推送SMTP密码
+SMTP_FROM="岁迹 <no-reply@mail.lifeatlas.cn>"
+```
+
+## 仍需人工确认
+
+- 阿里云邮件推送发信地址 `no-reply@mail.lifeatlas.cn` 是否已启用。
+- 阿里云邮件推送 SMTP 密码是否已写入服务器 `.env`。
+- 用真实 QQ 邮箱测试：
+  - 注册验证码
+  - 邮箱验证码登录
+  - 忘记密码验证码
+  - 垃圾箱/延迟投递情况
+
+## 延后 TODO
+
+- QQ/微信真实登录：等待开放平台 AppID/AppSecret、Android 包名和签名审核通过。
+- 云同步：等待账号体系稳定后设计云端数据表、媒体上传、冲突合并和软删除策略。
+- 发布上线：准备隐私政策正式版、用户协议、Release 签名、应用市场截图和介绍文案。

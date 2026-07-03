@@ -13,38 +13,44 @@ const app = express();
 const port = Number(process.env.PORT || 8080);
 const jwtSecret = process.env.JWT_SECRET || "lifeatlas-dev-secret-change-me";
 const dataFile = process.env.DATA_FILE || "./data/users.json";
+const auditFile = process.env.AUDIT_FILE || "./data/audit.log";
 const appBaseUrl = (process.env.APP_BASE_URL || `http://localhost:${port}`).replace(/\/$/, "");
+
 const registerLimit = new Map();
 const emailCodeLimit = new Map();
 const emailCodes = new Map();
+const ipLimit = new Map();
+const loginFailures = new Map();
 
 app.use(cors());
 app.use(express.json({ limit: "512kb" }));
 
 app.get("/health", (_request, response) => {
-  response.json({ ok: true, service: "LifeAtlas Auth Server" });
+  response.json({
+    ok: true,
+    service: "LifeAtlas Auth Server",
+    mailConfigured: isSmtpConfigured()
+  });
 });
 
 app.post("/api/auth/email/code/request", async (request, response) => {
   try {
     const email = normalizeEmail(request.body?.email);
     const purpose = normalizePurpose(request.body?.purpose);
+    enforceIpLimit(request, `email-code:${purpose}`, 20, 60 * 60 * 1000);
     validateEmail(email);
     enforceEmailCodeLimit(email, purpose);
 
-    const code = String(crypto.randomInt(100000, 999999));
+    const code = createEmailCode();
     emailCodes.set(codeKey(email, purpose), {
-      codeHash: hashCode(code),
+      codeHash: hashCode(email, purpose, code),
       expiresAt: Date.now() + 10 * 60 * 1000,
       attempts: 0
     });
 
     const mailResult = await trySendEmailCode(email, code, purpose);
-    response.json({
-      ok: true,
-      emailSent: mailResult.sent,
-      message: mailResult.message
-    });
+    await auditLog(request, "email_code_requested", { email, purpose, emailSent: mailResult.sent });
+    response.json({ ok: true, emailSent: mailResult.sent, message: mailResult.message });
   } catch (error) {
     sendError(response, error);
   }
@@ -53,6 +59,7 @@ app.post("/api/auth/email/code/request", async (request, response) => {
 app.post("/api/auth/register", async (request, response) => {
   try {
     const { email, password, accountName, code } = parseRegisterRequest(request.body);
+    enforceIpLimit(request, "register", 10, 60 * 60 * 1000);
     enforceRegisterLimit(email);
     verifyEmailCode(email, "register", code);
 
@@ -68,13 +75,13 @@ app.post("/api/auth/register", async (request, response) => {
       passwordSalt,
       passwordHash: hashPassword(password, passwordSalt),
       emailVerified: true,
-      verificationToken: null,
-      resetToken: null,
+      oauth: {},
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
     store.users[email] = user;
     await writeStore(store);
+    await auditLog(request, "registered", { email });
 
     response.json(toSession(user, { sent: true, message: "注册成功，邮箱验证码已通过。" }));
   } catch (error) {
@@ -85,11 +92,19 @@ app.post("/api/auth/register", async (request, response) => {
 app.post("/api/auth/login", async (request, response) => {
   try {
     const { email, password } = parseEmailPassword(request.body);
+    enforceIpLimit(request, "login-password", 30, 15 * 60 * 1000);
+    enforceBackendLoginLock(email, request);
+
     const store = await readStore();
     const user = store.users[email];
     if (!user || user.passwordHash !== hashPassword(password, user.passwordSalt)) {
+      recordBackendLoginFailure(email, request);
+      await auditLog(request, "login_failed", { email, method: "password" });
       return response.status(401).json({ message: "邮箱或密码错误" });
     }
+
+    clearBackendLoginFailure(email, request);
+    await auditLog(request, "login_success", { email, method: "password" });
     response.json(toSession(user));
   } catch (error) {
     sendError(response, error);
@@ -100,17 +115,24 @@ app.post("/api/auth/login/code", async (request, response) => {
   try {
     const email = normalizeEmail(request.body?.email);
     const code = String(request.body?.code || "").trim();
+    enforceIpLimit(request, "login-code", 30, 15 * 60 * 1000);
+    enforceBackendLoginLock(email, request);
     validateEmail(email);
     verifyEmailCode(email, "login", code);
 
     const store = await readStore();
     const user = store.users[email];
     if (!user) {
+      recordBackendLoginFailure(email, request);
+      await auditLog(request, "login_failed", { email, method: "email_code", reason: "user_not_found" });
       return response.status(404).json({ message: "该邮箱尚未注册，请先注册账号" });
     }
+
     user.emailVerified = true;
     user.updatedAt = Date.now();
     await writeStore(store);
+    clearBackendLoginFailure(email, request);
+    await auditLog(request, "login_success", { email, method: "email_code" });
     response.json(toSession(user));
   } catch (error) {
     sendError(response, error);
@@ -119,19 +141,20 @@ app.post("/api/auth/login/code", async (request, response) => {
 
 app.post("/api/auth/email/verification/request", async (request, response) => {
   try {
+    enforceIpLimit(request, "email-verification", 12, 60 * 60 * 1000);
     const user = await requireUser(request);
-    const code = String(crypto.randomInt(100000, 999999));
+    const code = createEmailCode();
     emailCodes.set(codeKey(user.email, "login"), {
-      codeHash: hashCode(code),
+      codeHash: hashCode(user.email, "login", code),
       expiresAt: Date.now() + 10 * 60 * 1000,
       attempts: 0
     });
     const mailResult = await trySendEmailCode(user.email, code, "login");
-    response.json({
-      ok: true,
-      emailSent: mailResult.sent,
-      message: mailResult.message
+    await auditLog(request, "verification_email_requested", {
+      email: user.email,
+      emailSent: mailResult.sent
     });
+    response.json({ ok: true, emailSent: mailResult.sent, message: mailResult.message });
   } catch (error) {
     sendError(response, error);
   }
@@ -155,13 +178,15 @@ app.get("/api/auth/email/verify", async (request, response) => {
 app.post("/api/auth/password/reset/request", async (request, response) => {
   try {
     const email = normalizeEmail(request.body?.email);
+    enforceIpLimit(request, "password-reset-request", 12, 60 * 60 * 1000);
     validateEmail(email);
+
     const store = await readStore();
     const user = store.users[email];
     if (user) {
-      const code = String(crypto.randomInt(100000, 999999));
+      const code = createEmailCode();
       emailCodes.set(codeKey(email, "reset"), {
-        codeHash: hashCode(code),
+        codeHash: hashCode(email, "reset", code),
         expiresAt: Date.now() + 10 * 60 * 1000,
         attempts: 0
       });
@@ -169,13 +194,12 @@ app.post("/api/auth/password/reset/request", async (request, response) => {
       user.updatedAt = Date.now();
       await writeStore(store);
       const mailResult = await trySendPasswordResetCodeEmail(user, code);
-      return response.json({
-        ok: true,
-        emailSent: mailResult.sent,
-        message: mailResult.message
-      });
+      await auditLog(request, "password_reset_requested", { email, emailSent: mailResult.sent });
+      return response.json({ ok: true, emailSent: mailResult.sent, message: mailResult.message });
     }
-    response.json({ ok: true, emailSent: true, message: "如果邮箱已注册，重置邮件会发送到该邮箱。" });
+
+    await auditLog(request, "password_reset_requested_unknown_email", { email });
+    response.json({ ok: true, emailSent: true, message: "如果邮箱已注册，重置验证码会发送到该邮箱。" });
   } catch (error) {
     sendError(response, error);
   }
@@ -186,6 +210,7 @@ app.post("/api/auth/password/reset/confirm", async (request, response) => {
     const email = normalizeEmail(request.body?.email);
     const code = String(request.body?.code || "").trim();
     const password = String(request.body?.password || "");
+    enforceIpLimit(request, "password-reset-confirm", 20, 60 * 60 * 1000);
     validateEmail(email);
     validatePassword(password);
     verifyEmailCode(email, "reset", code);
@@ -202,11 +227,24 @@ app.post("/api/auth/password/reset/confirm", async (request, response) => {
     user.resetToken = null;
     user.updatedAt = Date.now();
     await writeStore(store);
+    clearBackendLoginFailure(email, request);
+    await auditLog(request, "password_reset_confirmed", { email });
 
     response.json({ ok: true, emailSent: false, message: "密码已重置，请使用新密码登录。" });
   } catch (error) {
     sendError(response, error);
   }
+});
+
+app.post("/api/auth/oauth/:provider", async (request, response) => {
+  const provider = String(request.params.provider || "").toLowerCase();
+  if (!["qq", "wechat"].includes(provider)) {
+    return response.status(400).json({ message: "不支持的第三方登录方式" });
+  }
+  await auditLog(request, "oauth_requested", { provider });
+  response.status(501).json({
+    message: `${provider === "wechat" ? "微信" : "QQ"}登录服务端接口已预留，等待开放平台 AppID/AppSecret 与官方 SDK 回调接入。`
+  });
 });
 
 async function requireUser(request) {
@@ -240,20 +278,16 @@ function toSession(user, mailResult = null) {
 }
 
 async function trySendEmailCode(email, code, purpose) {
-  const label = purpose === "login" ? "登录" : "注册";
+  const label = purpose === "login" ? "登录" : purpose === "reset" ? "重置密码" : "注册";
   return trySendMail(
     () => sendEmailCode(email, code, label),
     `${label}验证码已发送，请检查收件箱或垃圾邮件。`
   );
 }
 
-async function trySendPasswordResetEmail(user) {
-  return trySendMail(() => sendPasswordResetEmail(user), "密码重置邮件已发送，请检查收件箱或垃圾邮件。");
-}
-
 async function trySendPasswordResetCodeEmail(user, code) {
   return trySendMail(
-    () => sendPasswordResetCodeEmail(user, code),
+    () => sendEmailCode(user.email, code, "重置密码"),
     "密码重置验证码已发送，请检查收件箱或垃圾邮件。"
   );
 }
@@ -282,30 +316,18 @@ function ensureSmtpConfigured() {
   }
 }
 
+function isSmtpConfigured() {
+  return ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"].every(
+    (key) => process.env[key] && !process.env[key].startsWith("replace-with")
+  );
+}
+
 async function sendEmailCode(email, code, label) {
   await sendMail({
     to: email,
     subject: `岁迹${label}验证码`,
     text: `你的岁迹${label}验证码是：${code}\n验证码 10 分钟内有效，请勿转发给他人。`,
     html: `<p>你的岁迹${label}验证码是：</p><p style="font-size:24px;font-weight:700;letter-spacing:4px;">${code}</p><p>验证码 10 分钟内有效，请勿转发给他人。</p>`
-  });
-}
-
-async function sendPasswordResetEmail(user) {
-  await sendMail({
-    to: user.email,
-    subject: "岁迹密码重置请求",
-    text: `你发起了密码重置请求。当前版本先记录请求，后续会接入重置页面。令牌：${user.resetToken}`,
-    html: "<p>你发起了密码重置请求。</p><p>当前版本先记录请求，后续会接入重置页面。</p>"
-  });
-}
-
-async function sendPasswordResetCodeEmail(user, code) {
-  await sendMail({
-    to: user.email,
-    subject: "岁迹密码重置验证码",
-    text: `你的岁迹密码重置验证码是：${code}\n验证码 10 分钟内有效。如非本人操作，请忽略此邮件。`,
-    html: `<p>你的岁迹密码重置验证码是：</p><p style="font-size:24px;font-weight:700;letter-spacing:4px;">${code}</p><p>验证码 10 分钟内有效。如非本人操作，请忽略此邮件。</p>`
   });
 }
 
@@ -371,6 +393,10 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+function createEmailCode() {
+  return String(crypto.randomInt(100000, 999999));
+}
+
 function enforceEmailCodeLimit(email, purpose) {
   const now = Date.now();
   const minuteKey = `${purpose}:${email}:${Math.floor(now / 60000)}`;
@@ -412,7 +438,7 @@ function verifyEmailCode(email, purpose, code) {
     throw error;
   }
   entry.attempts += 1;
-  if (entry.codeHash !== hashCode(code)) {
+  if (entry.codeHash !== hashCode(email, purpose, code)) {
     const error = new Error("验证码不正确");
     error.status = 400;
     throw error;
@@ -424,8 +450,8 @@ function codeKey(email, purpose) {
   return `${purpose}:${email}`;
 }
 
-function hashCode(code) {
-  return crypto.createHash("sha256").update(`${jwtSecret}:${code}`).digest("hex");
+function hashCode(email, purpose, code) {
+  return crypto.createHash("sha256").update(`${jwtSecret}:${purpose}:${email}:${code}`).digest("hex");
 }
 
 function enforceRegisterLimit(email) {
@@ -438,6 +464,66 @@ function enforceRegisterLimit(email) {
     throw error;
   }
   registerLimit.set(key, count + 1);
+}
+
+function enforceIpLimit(request, action, maxCount, windowMs) {
+  const now = Date.now();
+  const key = `${action}:${clientIp(request)}:${Math.floor(now / windowMs)}`;
+  const count = ipLimit.get(key) || 0;
+  if (count >= maxCount) {
+    const error = new Error("操作过于频繁，请稍后再试");
+    error.status = 429;
+    throw error;
+  }
+  ipLimit.set(key, count + 1);
+}
+
+function enforceBackendLoginLock(email, request) {
+  const entry = loginFailures.get(loginFailureKey(email, request));
+  if (entry?.lockedUntil && entry.lockedUntil > Date.now()) {
+    const minutes = Math.ceil((entry.lockedUntil - Date.now()) / 60000);
+    const error = new Error(`登录尝试过于频繁，请约 ${minutes} 分钟后再试`);
+    error.status = 429;
+    throw error;
+  }
+}
+
+function recordBackendLoginFailure(email, request) {
+  const key = loginFailureKey(email, request);
+  const now = Date.now();
+  const previous = loginFailures.get(key);
+  const count = previous && now - previous.lastFailedAt < 15 * 60 * 1000 ? previous.count + 1 : 1;
+  loginFailures.set(key, {
+    count,
+    lastFailedAt: now,
+    lockedUntil: count >= 5 ? now + 10 * 60 * 1000 : null
+  });
+}
+
+function clearBackendLoginFailure(email, request) {
+  loginFailures.delete(loginFailureKey(email, request));
+}
+
+function loginFailureKey(email, request) {
+  return `${email}:${clientIp(request)}`;
+}
+
+function clientIp(request) {
+  return String(request.headers["x-forwarded-for"] || request.ip || request.socket?.remoteAddress || "")
+    .split(",")[0]
+    .trim();
+}
+
+async function auditLog(request, event, details = {}) {
+  const line = JSON.stringify({
+    at: new Date().toISOString(),
+    event,
+    ip: clientIp(request),
+    userAgent: request.headers["user-agent"] || "",
+    ...details
+  });
+  await fs.mkdir(path.dirname(auditFile), { recursive: true });
+  await fs.appendFile(auditFile, `${line}\n`);
 }
 
 function hashPassword(password, salt) {
