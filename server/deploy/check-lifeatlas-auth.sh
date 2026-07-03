@@ -17,3 +17,9 @@ if command -v journalctl >/dev/null 2>&1; then
   echo "==> Recent logs"
   sudo journalctl -u "$SERVICE_NAME" -n 80 --no-pager || true
 fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/check-mail-env.sh" ]; then
+  echo "==> Mail env"
+  bash "$SCRIPT_DIR/check-mail-env.sh" || true
+fi
