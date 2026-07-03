@@ -171,9 +171,8 @@ data class AuthApiSession(
 data class AuthApiMailResult(
     val ok: Boolean = true,
     val emailSent: Boolean = false,
-    val message: String = "邮件服务暂不可用，请稍后重试"
+    val message: String = "邮件服务暂不可用，请稍后再试"
 )
-
 @Serializable
 private data class AuthApiEmailPasswordRequest(
     val email: String,
@@ -221,3 +220,4 @@ private data class AuthApiOAuthLoginRequest(
 private data class AuthApiError(
     val message: String
 )
+

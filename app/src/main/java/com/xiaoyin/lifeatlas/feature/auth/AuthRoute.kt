@@ -443,6 +443,8 @@ private fun AuthFormCard(
                 )
             }
 
+            AuthInlineFeedback(uiState = uiState)
+
             SocialLoginRow(
                 wechatConfigured = uiState.wechatLoginConfigured,
                 qqConfigured = uiState.qqLoginConfigured,
@@ -548,6 +550,30 @@ private fun AuthModeChip(selected: Boolean, text: String, onClick: () -> Unit) {
             )
         }
     )
+}
+
+@Composable
+private fun AuthInlineFeedback(uiState: AuthUiState) {
+    val error = uiState.error
+    val message = uiState.message
+    when {
+        !error.isNullOrBlank() -> {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        !message.isNullOrBlank() -> {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = WildernessTeal,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
 }
 
 @Composable
