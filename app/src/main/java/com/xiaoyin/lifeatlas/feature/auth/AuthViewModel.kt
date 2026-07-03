@@ -6,12 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.xiaoyin.lifeatlas.core.auth.AuthRepository
 import com.xiaoyin.lifeatlas.core.auth.AuthSession
 import com.xiaoyin.lifeatlas.core.auth.SocialAuthProvider
+import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class AuthUiState(
     val session: AuthSession = AuthSession(),
@@ -44,6 +47,7 @@ private val EMAIL_REGEX = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val authRepository = AuthRepository(application)
+    private val exportService = ExportServiceProvider.exportService(application)
     private val formState = MutableStateFlow(AuthUiState())
 
     val uiState: StateFlow<AuthUiState> = MutableStateFlow(AuthUiState()).also { target ->
@@ -240,6 +244,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 if (!state.isPasswordResetMode) {
+                    syncCloudBackupAfterLogin()
                     onSuccess()
                 }
             }.onFailure { error ->
@@ -403,6 +408,60 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     error = null
                 )
             }
+        }
+    }
+
+    private suspend fun syncCloudBackupAfterLogin() {
+        if (!authRepository.isBackendConfigured()) return
+        val hasLocalRecords = withContext(Dispatchers.IO) { exportService.hasLocalRecords() }
+
+        runCatching {
+            val backup = authRepository.downloadCloudBackup()
+            val backupData = backup.data
+            val shouldRestore = backup.exists &&
+                !backupData.isNullOrBlank() &&
+                withContext(Dispatchers.IO) {
+                    !hasLocalRecords || exportService.hasOnlyStarterRecords()
+                }
+            if (shouldRestore) {
+                withContext(Dispatchers.IO) { exportService.importJson(requireNotNull(backupData)) }
+                backup
+            } else {
+                null
+            }
+        }.onSuccess { backup ->
+            if (backup != null) {
+                formState.update {
+                    it.copy(
+                        message = "已从云端恢复记录、标签、地点和照片引用。照片原文件仍需通过完整备份包恢复。",
+                        error = null
+                    )
+                }
+                return
+            }
+        }.onFailure { error ->
+            formState.update {
+                it.copy(
+                    message = "登录成功，但云端备份暂未恢复：${error.message ?: "请稍后重试"}",
+                    error = null
+                )
+            }
+            return
+        }
+
+        if (hasLocalRecords) {
+            runCatching {
+                val backupJson = withContext(Dispatchers.IO) { exportService.exportJson() }
+                authRepository.uploadCloudBackup(backupJson)
+            }.onSuccess {
+                formState.update {
+                    it.copy(
+                        message = "登录成功，已为当前记录保存一份云端轻量备份。",
+                        error = null
+                    )
+                }
+            }
+            return
         }
     }
 }

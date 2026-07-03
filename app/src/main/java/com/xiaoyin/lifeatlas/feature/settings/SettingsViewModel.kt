@@ -139,25 +139,31 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun prepareCloudSync() {
         viewModelScope.launch {
             _uiState.update { it.copy(isPreparingCloudSync = true, message = null) }
-            settingsRepository.markCloudSyncPrepared()
-            _uiState.update {
-                it.copy(
-                    isPreparingCloudSync = false,
-                    message = SettingsMessage(
-                        if (authRepository.isBackendConfigured()) {
-                            "云同步准备检查完成：国内后端已配置。下一阶段可接入云端数据表、媒体上传和冲突合并。"
-                        } else if (authRepository.isFirebaseActive()) {
-                            "云同步准备检查完成：Firebase 已显式启用。下一阶段可接入云端数据表与冲突合并。"
-                        } else {
-                            "云同步准备检查完成：当前缺少国内后端配置，仍建议使用完整备份包迁移。"
-                        },
-                        SettingsMessageType.Info
+            runCatching {
+                require(authRepository.isBackendConfigured()) { "请先登录国内后端账号，再进行云端备份" }
+                val backupJson = withContext(Dispatchers.IO) { exportService.exportJson() }
+                authRepository.uploadCloudBackup(backupJson)
+            }.onSuccess { result ->
+                settingsRepository.markCloudSyncPrepared()
+                _uiState.update {
+                    it.copy(
+                        isPreparingCloudSync = false,
+                        message = SettingsMessage(
+                            "云端轻量备份完成：已保存记录、标签、地点和照片引用，约 ${result.size} 字节。照片原文件请继续使用完整备份包保存。",
+                            SettingsMessageType.Success
+                        )
                     )
-                )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isPreparingCloudSync = false,
+                        message = error.toSettingsMessage("云端轻量备份失败")
+                    )
+                }
             }
         }
     }
-
     fun prepareExport() {
         viewModelScope.launch {
             _uiState.update { it.copy(isExporting = true, message = null) }

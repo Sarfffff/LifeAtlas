@@ -15,6 +15,7 @@ const jwtSecret = process.env.JWT_SECRET || "lifeatlas-dev-secret-change-me";
 const dataFile = process.env.DATA_FILE || "./data/users.json";
 const auditFile = process.env.AUDIT_FILE || "./data/audit.log";
 const appBaseUrl = (process.env.APP_BASE_URL || `http://localhost:${port}`).replace(/\/$/, "");
+const cloudBackupMaxBytes = Number(process.env.CLOUD_BACKUP_MAX_BYTES || 1024 * 1024);
 
 const registerLimit = new Map();
 const emailCodeLimit = new Map();
@@ -23,7 +24,7 @@ const ipLimit = new Map();
 const loginFailures = new Map();
 
 app.use(cors());
-app.use(express.json({ limit: "512kb" }));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "2mb" }));
 
 app.get("/health", (_request, response) => {
   response.json({
@@ -247,6 +248,63 @@ app.post("/api/auth/oauth/:provider", async (request, response) => {
   });
 });
 
+app.post("/api/sync/export/upload", async (request, response) => {
+  try {
+    enforceIpLimit(request, "sync-upload", 30, 60 * 60 * 1000);
+    const user = await requireUser(request);
+    const data = String(request.body?.data || "");
+    validateCloudBackupData(data);
+
+    const store = await readStore();
+    const storedUser = store.users[user.email];
+    const size = Buffer.byteLength(data, "utf8");
+    storedUser.cloudBackup = {
+      schemaVersion: 1,
+      data,
+      size,
+      updatedAt: Date.now()
+    };
+    storedUser.updatedAt = Date.now();
+    await writeStore(store);
+    await auditLog(request, "cloud_backup_uploaded", { email: user.email, size });
+
+    response.json({
+      ok: true,
+      updatedAt: storedUser.cloudBackup.updatedAt,
+      size,
+      message: "云端轻量备份已保存"
+    });
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
+app.post("/api/sync/export/download", async (request, response) => {
+  try {
+    enforceIpLimit(request, "sync-download", 60, 60 * 60 * 1000);
+    const user = await requireUser(request);
+    const backup = user.cloudBackup;
+    if (!backup?.data) {
+      return response.json({
+        ok: true,
+        exists: false,
+        message: "暂无云端备份"
+      });
+    }
+
+    response.json({
+      ok: true,
+      exists: true,
+      data: backup.data,
+      updatedAt: backup.updatedAt,
+      size: backup.size || Buffer.byteLength(backup.data, "utf8"),
+      message: "已读取云端备份"
+    });
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
 async function requireUser(request) {
   const authorization = request.headers.authorization || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
@@ -399,6 +457,33 @@ function validateEmail(email) {
 function validatePassword(password) {
   if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
     const error = new Error("密码至少 8 位，并同时包含字母和数字");
+    error.status = 400;
+    throw error;
+  }
+}
+
+function validateCloudBackupData(data) {
+  const size = Buffer.byteLength(data, "utf8");
+  if (!data.trim()) {
+    const error = new Error("云端备份内容不能为空");
+    error.status = 400;
+    throw error;
+  }
+  if (size > cloudBackupMaxBytes) {
+    const error = new Error("云端轻量备份过大，请使用本地完整备份包保存照片");
+    error.status = 413;
+    throw error;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(data);
+  } catch {
+    const error = new Error("云端备份不是有效 JSON");
+    error.status = 400;
+    throw error;
+  }
+  if (parsed?.app !== "LifeAtlas" || parsed?.schemaVersion !== 1 || !Array.isArray(parsed.records)) {
+    const error = new Error("云端备份格式不属于岁迹");
     error.status = 400;
     throw error;
   }

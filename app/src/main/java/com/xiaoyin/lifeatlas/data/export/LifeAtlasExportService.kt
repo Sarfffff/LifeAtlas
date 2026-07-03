@@ -84,6 +84,19 @@ class LifeAtlasExportService(
         return json.encodeToString(export)
     }
 
+    suspend fun hasLocalRecords(): Boolean {
+        return memoryRecordDao.count() > 0
+    }
+
+    suspend fun hasOnlyStarterRecords(): Boolean {
+        val records = memoryRecordDao.getAll()
+        if (records.isEmpty() || records.size > 2) return false
+        return records.all { record ->
+            record.title.contains("房本") ||
+                record.title.contains("上海生活")
+        }
+    }
+
     suspend fun exportBackupZip(outputStream: OutputStream): LifeAtlasBackupResult {
         val exportedAt = System.currentTimeMillis()
         val exportJson = exportJson()

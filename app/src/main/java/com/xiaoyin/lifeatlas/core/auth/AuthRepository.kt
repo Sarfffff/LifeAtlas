@@ -227,6 +227,24 @@ class AuthRepository(context: Context) {
 
     fun isRemoteAuthConfigured(): Boolean = isBackendConfigured() || shouldUseFirebase()
 
+    suspend fun uploadCloudBackup(data: String): AuthApiCloudBackupResult {
+        require(isBackendConfigured()) { "云端备份需要先启用国内后端账号服务" }
+        val token = dataStore.data.first()[BACKEND_ACCESS_TOKEN] ?: error("请先登录账号")
+        return withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
+            requireNotNull(authApiClient) { "国内后端地址未配置" }
+                .uploadCloudBackup(token, data)
+        }
+    }
+
+    suspend fun downloadCloudBackup(): AuthApiCloudBackupPayload {
+        require(isBackendConfigured()) { "云端恢复需要先启用国内后端账号服务" }
+        val token = dataStore.data.first()[BACKEND_ACCESS_TOKEN] ?: error("请先登录账号")
+        return withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
+            requireNotNull(authApiClient) { "国内后端地址未配置" }
+                .downloadCloudBackup(token)
+        }
+    }
+
     fun isSocialLoginConfigured(provider: SocialAuthProvider): Boolean {
         return when (provider) {
             SocialAuthProvider.WeChat -> wechatAppId.isNotBlank()

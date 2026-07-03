@@ -97,6 +97,25 @@ class AuthApiClient(
         )
     }
 
+    suspend fun uploadCloudBackup(accessToken: String, data: String): AuthApiCloudBackupResult {
+        return post<AuthApiCloudBackupResult>(
+            path = "/api/sync/export/upload",
+            bodyText = json.encodeToString(
+                AuthApiCloudBackupUploadRequest.serializer(),
+                AuthApiCloudBackupUploadRequest(data)
+            ),
+            bearerToken = accessToken
+        )
+    }
+
+    suspend fun downloadCloudBackup(accessToken: String): AuthApiCloudBackupPayload {
+        return post<AuthApiCloudBackupPayload>(
+            path = "/api/sync/export/download",
+            bodyText = "{}",
+            bearerToken = accessToken
+        )
+    }
+
     private suspend inline fun <reified T> post(
         path: String,
         bodyText: String,
@@ -173,6 +192,29 @@ data class AuthApiMailResult(
     val emailSent: Boolean = false,
     val message: String = "邮件服务暂不可用，请稍后再试"
 )
+@Serializable
+data class AuthApiCloudBackupResult(
+    val ok: Boolean = true,
+    val updatedAt: Long? = null,
+    val size: Long = 0L,
+    val message: String = "云端轻量备份已保存"
+)
+
+@Serializable
+data class AuthApiCloudBackupPayload(
+    val ok: Boolean = true,
+    val exists: Boolean = false,
+    val data: String? = null,
+    val updatedAt: Long? = null,
+    val size: Long = 0L,
+    val message: String = "暂无云端备份"
+)
+
+@Serializable
+private data class AuthApiCloudBackupUploadRequest(
+    val data: String
+)
+
 @Serializable
 private data class AuthApiEmailPasswordRequest(
     val email: String,
