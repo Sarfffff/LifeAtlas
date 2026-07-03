@@ -372,22 +372,28 @@ private fun AuthFormCard(
             )
 
             if (uiState.isRegisterMode || uiState.isPasswordResetMode || uiState.loginMethod == AuthLoginMethod.EmailCode) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = uiState.verificationCode,
                         onValueChange = onVerificationCodeChange,
                         label = { Text("邮箱验证码") },
                         leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     OutlinedButton(
                         onClick = onSendEmailCode,
                         enabled = !uiState.isSendingCode,
-                        modifier = Modifier.height(56.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text(if (uiState.isSendingCode) "发送中" else "获取验证码")
+                        Text(
+                            if (uiState.isSendingCode) "发送中..." else "获取邮箱验证码",
+                            fontWeight = FontWeight.Black
+                        )
                     }
                 }
             }
