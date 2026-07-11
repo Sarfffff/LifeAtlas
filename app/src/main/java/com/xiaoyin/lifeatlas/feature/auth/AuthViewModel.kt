@@ -5,7 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaoyin.lifeatlas.core.auth.AuthRepository
 import com.xiaoyin.lifeatlas.core.auth.AuthSession
-import com.xiaoyin.lifeatlas.core.auth.SocialAuthProvider
 import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,8 +29,6 @@ data class AuthUiState(
     val isSendingCode: Boolean = false,
     val firebaseConfigured: Boolean = false,
     val backendConfigured: Boolean = false,
-    val wechatLoginConfigured: Boolean = false,
-    val qqLoginConfigured: Boolean = false,
     val remoteAuthConfigured: Boolean = false,
     val authModeLabel: String = "本地账号",
     val message: String? = null,
@@ -57,8 +54,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     session = session,
                     firebaseConfigured = authRepository.isFirebaseActive(),
                     backendConfigured = authRepository.isBackendConfigured(),
-                    wechatLoginConfigured = authRepository.isSocialLoginConfigured(SocialAuthProvider.WeChat),
-                    qqLoginConfigured = authRepository.isSocialLoginConfigured(SocialAuthProvider.QQ),
                     remoteAuthConfigured = authRepository.isRemoteAuthConfigured(),
                     authModeLabel = authRepository.authModeLabel()
                 )
@@ -253,32 +248,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loginWithSocialProvider(provider: SocialAuthProvider, onSuccess: () -> Unit = {}) {
-        viewModelScope.launch {
-            formState.update { it.copy(isLoading = true, error = null, message = null) }
-            runCatching {
-                authRepository.loginWithSocialProvider(provider)
-            }.onSuccess {
-                formState.update {
-                    it.copy(
-                        isLoading = false,
-                        message = "${provider.displayName}登录成功",
-                        error = null
-                    )
-                }
-                onSuccess()
-            }.onFailure { error ->
-                formState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = error.message ?: "${provider.displayName}登录暂不可用",
-                        message = null
-                    )
-                }
-            }
-        }
-    }
-
     fun refreshEmailVerification() {
         viewModelScope.launch {
             runCatching { authRepository.markEmailVerifiedForLocalPreview() }
@@ -408,6 +377,80 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     error = null
                 )
             }
+        }
+    }
+
+    fun requestEmailChangeCode(newEmail: String) {
+        viewModelScope.launch {
+            formState.update { it.copy(isSendingCode = true, error = null, message = "正在向新邮箱发送验证码...") }
+            runCatching { authRepository.requestEmailChangeCode(newEmail) }
+                .onSuccess {
+                    val notice = authRepository.session.first().authNotice
+                    formState.update {
+                        it.copy(
+                            isSendingCode = false,
+                            message = notice ?: "验证码已发送到新邮箱，请检查收件箱或垃圾邮件。",
+                            error = null
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    formState.update {
+                        it.copy(
+                            isSendingCode = false,
+                            error = error.message ?: "验证码发送失败",
+                            message = null
+                        )
+                    }
+                }
+        }
+    }
+
+    fun confirmEmailChange(
+        newEmail: String,
+        code: String,
+        password: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            formState.update { it.copy(isLoading = true, error = null, message = null) }
+            runCatching { authRepository.confirmEmailChange(newEmail, code, password) }
+                .onSuccess {
+                    formState.update {
+                        it.copy(isLoading = false, message = "邮箱修改成功，登录凭证已更新。", error = null)
+                    }
+                    onSuccess()
+                }
+                .onFailure { error ->
+                    formState.update {
+                        it.copy(isLoading = false, error = error.message ?: "邮箱修改失败", message = null)
+                    }
+                }
+        }
+    }
+
+    fun deleteRemoteAccount(password: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            formState.update { it.copy(isLoading = true, error = null, message = null) }
+            runCatching { authRepository.deleteRemoteAccount(password) }
+                .onSuccess { message ->
+                    formState.update {
+                        it.copy(
+                            isLoading = false,
+                            email = "",
+                            password = "",
+                            confirmPassword = "",
+                            message = "$message。本机记忆仍然保留。",
+                            error = null
+                        )
+                    }
+                    onSuccess()
+                }
+                .onFailure { error ->
+                    formState.update {
+                        it.copy(isLoading = false, error = error.message ?: "账号删除失败", message = null)
+                    }
+                }
         }
     }
 

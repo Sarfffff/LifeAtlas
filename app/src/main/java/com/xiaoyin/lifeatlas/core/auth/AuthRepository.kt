@@ -32,18 +32,11 @@ data class AuthSession(
     val loginLockedUntil: Long? = null
 )
 
-enum class SocialAuthProvider(val id: String, val displayName: String) {
-    WeChat("wechat", "微信"),
-    QQ("qq", "QQ")
-}
-
 class AuthRepository(context: Context) {
     private val appContext = context.applicationContext
     private val dataStore = appContext.authDataStore
     private val authApiBaseUrl = BuildConfig.AUTH_API_BASE_URL.trim()
     private val authProvider = BuildConfig.AUTH_PROVIDER.trim().lowercase()
-    private val wechatAppId = BuildConfig.AUTH_WECHAT_APP_ID.trim()
-    private val qqAppId = BuildConfig.AUTH_QQ_APP_ID.trim()
     private val authApiClient = authApiBaseUrl.takeIf { it.isNotBlank() }?.let(::AuthApiClient)
 
     val session: Flow<AuthSession> = dataStore.data.map { preferences ->
@@ -134,8 +127,9 @@ class AuthRepository(context: Context) {
 
     suspend fun sendEmailVerification() {
         if (isBackendConfigured()) {
-            val token = dataStore.data.first()[BACKEND_ACCESS_TOKEN] ?: error("请先登录账号")
-            val result = requireNotNull(authApiClient) { "国内后端地址未配置" }.requestEmailVerification(token)
+            val result = withAuthenticatedBackendRequest { client, token ->
+                client.requestEmailVerification(token)
+            }
             dataStore.edit { preferences ->
                 preferences[AUTH_NOTICE] = result.message
             }
@@ -219,6 +213,48 @@ class AuthRepository(context: Context) {
         }
     }
 
+    suspend fun requestEmailChangeCode(newEmail: String) {
+        val normalizedEmail = newEmail.normalizeEmail()
+        validateEmail(normalizedEmail)
+        require(isBackendConfigured()) { "修改邮箱需要先登录国内后端账号" }
+        val currentEmail = session.first().email.orEmpty().normalizeEmail()
+        require(normalizedEmail != currentEmail) { "新邮箱不能与当前邮箱相同" }
+        val result = withAuthenticatedBackendRequest { client, token ->
+            client.requestEmailChangeCode(token, normalizedEmail)
+        }
+        dataStore.edit { preferences -> preferences[AUTH_NOTICE] = result.message }
+        require(result.emailSent) { result.message }
+    }
+
+    suspend fun confirmEmailChange(newEmail: String, code: String, password: String) {
+        val normalizedEmail = newEmail.normalizeEmail()
+        validateEmail(normalizedEmail)
+        validatePassword(password)
+        require(code.trim().matches(Regex("^\\d{6}$"))) { "请输入 6 位邮箱验证码" }
+        val result = withAuthenticatedBackendRequest { client, token ->
+            client.confirmEmailChange(token, normalizedEmail, code.trim(), password)
+        }
+        dataStore.edit { preferences -> saveBackendSession(preferences, result) }
+    }
+
+    suspend fun deleteRemoteAccount(password: String): String {
+        validatePassword(password)
+        require(isBackendConfigured()) { "删除云端账号需要先登录国内后端账号" }
+        val result = withAuthenticatedBackendRequest { client, token ->
+            client.deleteAccount(token, password)
+        }
+        dataStore.edit { preferences ->
+            preferences[IS_LOGGED_IN] = false
+            preferences[SKIPPED_LOGIN] = false
+            preferences.remove(BACKEND_ACCESS_TOKEN)
+            preferences.remove(BACKEND_REFRESH_TOKEN)
+            preferences.remove(EMAIL)
+            preferences.remove(EMAIL_VERIFIED)
+            preferences.remove(AUTH_NOTICE)
+        }
+        return result.message
+    }
+
     fun isFirebaseConfigured(): Boolean = FirebaseApp.getApps(appContext).isNotEmpty()
 
     fun isBackendConfigured(): Boolean = authApiBaseUrl.isNotBlank() && authProvider != "firebase"
@@ -229,37 +265,16 @@ class AuthRepository(context: Context) {
 
     suspend fun uploadCloudBackup(data: String): AuthApiCloudBackupResult {
         require(isBackendConfigured()) { "云端备份需要先启用国内后端账号服务" }
-        val token = dataStore.data.first()[BACKEND_ACCESS_TOKEN] ?: error("请先登录账号")
         return withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
-            requireNotNull(authApiClient) { "国内后端地址未配置" }
-                .uploadCloudBackup(token, data)
+            withAuthenticatedBackendRequest { client, token -> client.uploadCloudBackup(token, data) }
         }
     }
 
     suspend fun downloadCloudBackup(): AuthApiCloudBackupPayload {
         require(isBackendConfigured()) { "云端恢复需要先启用国内后端账号服务" }
-        val token = dataStore.data.first()[BACKEND_ACCESS_TOKEN] ?: error("请先登录账号")
         return withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
-            requireNotNull(authApiClient) { "国内后端地址未配置" }
-                .downloadCloudBackup(token)
+            withAuthenticatedBackendRequest { client, token -> client.downloadCloudBackup(token) }
         }
-    }
-
-    fun isSocialLoginConfigured(provider: SocialAuthProvider): Boolean {
-        return when (provider) {
-            SocialAuthProvider.WeChat -> wechatAppId.isNotBlank()
-            SocialAuthProvider.QQ -> qqAppId.isNotBlank()
-        }
-    }
-
-    suspend fun loginWithSocialProvider(provider: SocialAuthProvider) {
-        require(isSocialLoginConfigured(provider)) {
-            "${provider.displayName}登录需要先配置开放平台 AppID。请在 local.properties 中填写 ${provider.localPropertyName()}。"
-        }
-        require(isBackendConfigured()) {
-            "${provider.displayName}登录需要国内后端完成授权码换取登录态。备案和后端 OAuth 接口完成前，请先使用邮箱或本地模式。"
-        }
-        error("${provider.displayName}登录入口已预留。下一步需要接入官方 SDK 获取授权码，再调用后端 OAuth 接口。")
     }
 
     fun authModeLabel(): String = when {
@@ -415,6 +430,33 @@ class AuthRepository(context: Context) {
         preferences.remove(LAST_FAILED_LOGIN_AT)
     }
 
+    private suspend fun <T> withAuthenticatedBackendRequest(
+        request: suspend (AuthApiClient, String) -> T
+    ): T {
+        val client = requireNotNull(authApiClient) { "国内后端地址未配置" }
+        val snapshot = dataStore.data.first()
+        val accessToken = snapshot[BACKEND_ACCESS_TOKEN] ?: error("请先登录账号")
+        return try {
+            request(client, accessToken)
+        } catch (error: AuthApiException) {
+            if (error.statusCode != 401) throw error
+            val refreshToken = snapshot[BACKEND_REFRESH_TOKEN]
+                ?: throw IllegalStateException("登录状态已过期，请重新登录")
+            val refreshed = try {
+                client.refreshSession(refreshToken)
+            } catch (_: Exception) {
+                dataStore.edit { preferences ->
+                    preferences[IS_LOGGED_IN] = false
+                    preferences.remove(BACKEND_ACCESS_TOKEN)
+                    preferences.remove(BACKEND_REFRESH_TOKEN)
+                }
+                throw IllegalStateException("登录状态已过期，请重新登录")
+            }
+            dataStore.edit { preferences -> saveBackendSession(preferences, refreshed) }
+            request(client, refreshed.accessToken)
+        }
+    }
+
     private fun saveFirebaseSession(
         preferences: MutablePreferences,
         email: String,
@@ -515,11 +557,6 @@ class AuthRepository(context: Context) {
     }
 
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
-
-    private fun SocialAuthProvider.localPropertyName(): String = when (this) {
-        SocialAuthProvider.WeChat -> "lifeatlas.auth.wechatAppId"
-        SocialAuthProvider.QQ -> "lifeatlas.auth.qqAppId"
-    }
 
     private companion object {
         val EMAIL = stringPreferencesKey("email")

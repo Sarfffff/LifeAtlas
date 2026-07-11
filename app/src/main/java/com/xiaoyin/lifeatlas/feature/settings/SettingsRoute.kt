@@ -93,6 +93,7 @@ fun SettingsRoute(
     var showDataPanel by remember { mutableStateOf(false) }
     var showSyncPanel by remember { mutableStateOf(false) }
     var showCloudSyncPanel by remember { mutableStateOf(false) }
+    var showCloudRestoreConfirm by remember { mutableStateOf(false) }
     var showMapPanel by remember { mutableStateOf(false) }
     var showPreferencePanel by remember { mutableStateOf(false) }
     var showAccountPanel by remember { mutableStateOf(false) }
@@ -279,11 +280,38 @@ fun SettingsRoute(
             uiState = uiState,
             onEnabledChange = viewModel::onCloudSyncEnabledChange,
             onPrepareCloudSync = viewModel::prepareCloudSync,
+            onRestoreCloudBackup = {
+                showCloudSyncPanel = false
+                showCloudRestoreConfirm = true
+            },
             onOpenBackup = {
                 showCloudSyncPanel = false
                 showDataPanel = true
             },
             onDismiss = { showCloudSyncPanel = false }
+        )
+    }
+
+    if (showCloudRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { if (!uiState.isRestoringCloudBackup) showCloudRestoreConfirm = false },
+            title = { Text("从云端恢复") },
+            text = { Text("云端结构化数据会导入本机。照片原文件不会从云端恢复，请保留完整备份包。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.restoreCloudBackup()
+                        showCloudRestoreConfirm = false
+                    },
+                    enabled = !uiState.isRestoringCloudBackup
+                ) { Text(if (uiState.isRestoringCloudBackup) "恢复中..." else "确认恢复") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showCloudRestoreConfirm = false },
+                    enabled = !uiState.isRestoringCloudBackup
+                ) { Text("取消") }
+            }
         )
     }
 
@@ -490,7 +518,7 @@ private fun DataSyncDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("完整备份包会包含记录、标签、地点和可读取的照片缓存。换手机或重装 App 时，选择备份包即可恢复。")
-                Text("多设备同步当前以备份包迁移实现；后续接入账号和云端后，会升级为自动同步。")
+                Text("登录账号后可保存一份不含照片原文件的云端轻量备份；完整迁移仍建议使用备份包。")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -535,6 +563,7 @@ private fun CloudSyncDialog(
     uiState: SettingsUiState,
     onEnabledChange: (Boolean) -> Unit,
     onPrepareCloudSync: () -> Unit,
+    onRestoreCloudBackup: () -> Unit,
     onOpenBackup: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -543,16 +572,16 @@ private fun CloudSyncDialog(
         title = { Text("多设备同步") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("当前仍采用本地优先策略。云同步开关用于准备后续账号云端同步，不会在未确认前自动上传个人记录。")
+                Text("当前提供手动轻量云备份：保存记录、标签、地点和照片引用，不上传照片原文件。每次上传前都由你确认。")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("云同步准备", fontWeight = FontWeight.Black, color = WildernessTeal)
+                        Text("轻量云备份", fontWeight = FontWeight.Black, color = WildernessTeal)
                         Text(
-                            if (uiState.cloudSyncSettings.enabled) "已启用准备状态" else "未启用，当前仅使用备份包迁移",
+                            if (uiState.cloudSyncSettings.enabled) "已启用手动备份入口" else "未启用，当前仅使用本地备份包",
                             style = MaterialTheme.typography.bodyMedium,
                             color = WildernessMuted
                         )
@@ -564,19 +593,27 @@ private fun CloudSyncDialog(
                 }
                 CloudSyncStatusLine("账号服务", uiState.authModeLabel)
                 CloudSyncStatusLine("国内后端", if (uiState.backendConfigured) "已配置" else "未配置")
-                CloudSyncStatusLine("Firebase", if (uiState.firebaseConfigured) "已显式启用" else "未启用")
-                CloudSyncStatusLine("当前上传策略", if (uiState.localFirstEnabled) "本地优先，不自动上传" else "允许后续接入云端同步")
-                CloudSyncStatusLine("最近检查", uiState.cloudSyncSettings.lastPreparedAt?.formatDateTime() ?: "尚未检查")
+                CloudSyncStatusLine("当前上传策略", "仅手动上传，不自动上传")
+                CloudSyncStatusLine("最近上传", uiState.cloudSyncSettings.lastPreparedAt?.formatDateTime() ?: "尚未上传")
                 Text(
-                    "正式云同步下一阶段需要接入云端数据表、冲突合并规则、删除同步策略和媒体文件上传策略。",
+                    "照片原文件请使用完整备份包保存。轻量备份适合服务器空间有限时保护结构化记录。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = WildernessMuted
                 )
+                OutlinedButton(
+                    onClick = onRestoreCloudBackup,
+                    enabled = !uiState.isRestoringCloudBackup,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (uiState.isRestoringCloudBackup) "恢复中..." else "从云端恢复到本机")
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = onPrepareCloudSync, enabled = !uiState.isPreparingCloudSync) {
-                Text(if (uiState.isPreparingCloudSync) "检查中..." else "同步准备检查")
+                Text(if (uiState.isPreparingCloudSync) "上传中..." else "上传轻量备份")
             }
         },
         dismissButton = {

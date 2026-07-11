@@ -36,6 +36,7 @@ data class SettingsUiState(
     val isImporting: Boolean = false,
     val isPreparingImport: Boolean = false,
     val isPreparingCloudSync: Boolean = false,
+    val isRestoringCloudBackup: Boolean = false,
     val pendingExportJson: String? = null,
     val pendingBackupExport: Boolean = false,
     val pendingBackupZipUri: Uri? = null,
@@ -159,6 +160,35 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         isPreparingCloudSync = false,
                         message = error.toSettingsMessage("云端轻量备份失败")
+                    )
+                }
+            }
+        }
+    }
+
+    fun restoreCloudBackup() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRestoringCloudBackup = true, message = null) }
+            runCatching {
+                require(authRepository.isBackendConfigured()) { "请先登录国内后端账号，再恢复云端备份" }
+                val backup = authRepository.downloadCloudBackup()
+                require(backup.exists && !backup.data.isNullOrBlank()) { "当前账号还没有云端轻量备份" }
+                withContext(Dispatchers.IO) { exportService.importJson(requireNotNull(backup.data)) }
+            }.onSuccess { result ->
+                _uiState.update {
+                    it.copy(
+                        isRestoringCloudBackup = false,
+                        message = SettingsMessage(
+                            "云端恢复完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签。照片原文件仍需使用完整备份包恢复。",
+                            SettingsMessageType.Success
+                        )
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isRestoringCloudBackup = false,
+                        message = error.toSettingsMessage("云端轻量备份恢复失败")
                     )
                 }
             }

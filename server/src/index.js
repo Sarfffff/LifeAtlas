@@ -22,6 +22,7 @@ const emailCodeLimit = new Map();
 const emailCodes = new Map();
 const ipLimit = new Map();
 const loginFailures = new Map();
+let storeMutation = Promise.resolve();
 
 app.use(cors());
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "2mb" }));
@@ -64,11 +65,6 @@ app.post("/api/auth/register", async (request, response) => {
     enforceRegisterLimit(email);
     verifyEmailCode(email, "register", code);
 
-    const store = await readStore();
-    if (store.users[email]) {
-      return response.status(409).json({ message: "该邮箱已注册，请直接登录" });
-    }
-
     const passwordSalt = randomToken(16);
     const user = {
       email,
@@ -76,12 +72,18 @@ app.post("/api/auth/register", async (request, response) => {
       passwordSalt,
       passwordHash: hashPassword(password, passwordSalt),
       emailVerified: true,
-      oauth: {},
+      authVersion: 1,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
-    store.users[email] = user;
-    await writeStore(store);
+    await updateStore((store) => {
+      if (store.users[email]) {
+        const error = new Error("该邮箱已注册，请直接登录");
+        error.status = 409;
+        throw error;
+      }
+      store.users[email] = user;
+    });
     await auditLog(request, "registered", { email });
 
     response.json(toSession(user, { sent: true, message: "注册成功，邮箱验证码已通过。" }));
@@ -121,20 +123,147 @@ app.post("/api/auth/login/code", async (request, response) => {
     validateEmail(email);
     verifyEmailCode(email, "login", code);
 
-    const store = await readStore();
-    const user = store.users[email];
-    if (!user) {
-      recordBackendLoginFailure(email, request);
-      await auditLog(request, "login_failed", { email, method: "email_code", reason: "user_not_found" });
-      return response.status(404).json({ message: "该邮箱尚未注册，请先注册账号" });
-    }
-
-    user.emailVerified = true;
-    user.updatedAt = Date.now();
-    await writeStore(store);
+    const user = await updateStore((store) => {
+      const target = store.users[email];
+      if (!target) {
+        const error = new Error("该邮箱尚未注册，请先注册账号");
+        error.status = 404;
+        throw error;
+      }
+      target.emailVerified = true;
+      target.updatedAt = Date.now();
+      return target;
+    });
     clearBackendLoginFailure(email, request);
     await auditLog(request, "login_success", { email, method: "email_code" });
     response.json(toSession(user));
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
+app.post("/api/auth/token/refresh", async (request, response) => {
+  try {
+    enforceIpLimit(request, "token-refresh", 120, 60 * 60 * 1000);
+    const refreshToken = String(request.body?.refreshToken || "").trim();
+    if (!refreshToken) {
+      return response.status(401).json({ message: "登录凭证已失效，请重新登录" });
+    }
+
+    const payload = jwt.verify(refreshToken, jwtSecret);
+    if (payload.type !== "refresh") {
+      return response.status(401).json({ message: "登录凭证类型无效，请重新登录" });
+    }
+    const store = await readStore();
+    const user = store.users[normalizeEmail(payload.email)];
+    if (!user || !isTokenVersionValid(payload, user)) {
+      return response.status(401).json({ message: "登录凭证已失效，请重新登录" });
+    }
+
+    await auditLog(request, "token_refreshed", { email: user.email });
+    response.json(toSession(user));
+  } catch (error) {
+    if (error?.name === "TokenExpiredError" || error?.name === "JsonWebTokenError") {
+      return response.status(401).json({ message: "登录凭证已过期，请重新登录" });
+    }
+    sendError(response, error);
+  }
+});
+
+app.post("/api/auth/email/change/code/request", async (request, response) => {
+  try {
+    enforceIpLimit(request, "email-change-code", 12, 60 * 60 * 1000);
+    const user = await requireUser(request);
+    const newEmail = normalizeEmail(request.body?.newEmail);
+    validateEmail(newEmail);
+    if (newEmail === user.email) {
+      return response.status(400).json({ message: "新邮箱不能与当前邮箱相同" });
+    }
+    const store = await readStore();
+    if (store.users[newEmail]) {
+      return response.status(409).json({ message: "该邮箱已绑定其他账号" });
+    }
+    enforceEmailCodeLimit(newEmail, "change-email");
+    const code = createEmailCode();
+    emailCodes.set(codeKey(newEmail, "change-email"), {
+      codeHash: hashCode(newEmail, "change-email", code),
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+      ownerEmail: user.email
+    });
+    const mailResult = await trySendEmailCode(newEmail, code, "change-email");
+    await auditLog(request, "email_change_code_requested", {
+      email: user.email,
+      newEmail,
+      emailSent: mailResult.sent
+    });
+    response.json({ ok: true, emailSent: mailResult.sent, message: mailResult.message });
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
+app.post("/api/auth/email/change/confirm", async (request, response) => {
+  try {
+    enforceIpLimit(request, "email-change-confirm", 12, 60 * 60 * 1000);
+    const currentUser = await requireUser(request);
+    const newEmail = normalizeEmail(request.body?.newEmail);
+    const code = String(request.body?.code || "").trim();
+    const password = String(request.body?.password || "");
+    validateEmail(newEmail);
+    validatePassword(password);
+    const entry = emailCodes.get(codeKey(newEmail, "change-email"));
+    if (entry?.ownerEmail !== currentUser.email) {
+      return response.status(400).json({ message: "邮箱验证码无效，请重新获取" });
+    }
+
+    const updatedUser = await updateStore((store) => {
+      const user = store.users[currentUser.email];
+      if (!user) throw unauthorizedError("账号不存在，请重新登录");
+      if (user.passwordHash !== hashPassword(password, user.passwordSalt)) {
+        const error = new Error("当前密码不正确");
+        error.status = 401;
+        throw error;
+      }
+      if (store.users[newEmail]) {
+        const error = new Error("该邮箱已绑定其他账号");
+        error.status = 409;
+        throw error;
+      }
+      verifyEmailCode(newEmail, "change-email", code);
+      delete store.users[currentUser.email];
+      user.email = newEmail;
+      user.emailVerified = true;
+      user.authVersion = tokenVersion(user) + 1;
+      user.updatedAt = Date.now();
+      store.users[newEmail] = user;
+      return user;
+    });
+    await auditLog(request, "email_changed", { email: currentUser.email, newEmail });
+    response.json(toSession(updatedUser, { sent: true, message: "邮箱修改成功" }));
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
+app.post("/api/auth/account/delete", async (request, response) => {
+  try {
+    enforceIpLimit(request, "account-delete", 6, 60 * 60 * 1000);
+    const currentUser = await requireUser(request);
+    const password = String(request.body?.password || "");
+    validatePassword(password);
+    await updateStore((store) => {
+      const user = store.users[currentUser.email];
+      if (!user) throw unauthorizedError("账号不存在，请重新登录");
+      if (user.passwordHash !== hashPassword(password, user.passwordSalt)) {
+        const error = new Error("当前密码不正确");
+        error.status = 401;
+        throw error;
+      }
+      delete store.users[currentUser.email];
+    });
+    await auditLog(request, "account_deleted", { email: currentUser.email });
+    response.json({ ok: true, message: "云端账号及轻量备份已删除" });
   } catch (error) {
     sendError(response, error);
   }
@@ -164,15 +293,20 @@ app.post("/api/auth/email/verification/request", async (request, response) => {
 app.get("/api/auth/email/verify", async (request, response) => {
   const email = normalizeEmail(String(request.query.email || ""));
   const token = String(request.query.token || "");
-  const store = await readStore();
-  const user = store.users[email];
-  if (!user || user.verificationToken !== token) {
-    return response.status(400).send("验证链接无效或已过期");
-  }
-  user.emailVerified = true;
-  user.verificationToken = null;
-  user.updatedAt = Date.now();
-  await writeStore(store);
+  await updateStore((store) => {
+    const user = store.users[email];
+    if (!user || user.verificationToken !== token) {
+      const error = new Error("验证链接无效或已过期");
+      error.status = 400;
+      throw error;
+    }
+    user.emailVerified = true;
+    user.verificationToken = null;
+    user.updatedAt = Date.now();
+  }).catch((error) => {
+    response.status(error.status || 500).send(error.message || "验证失败");
+  });
+  if (response.headersSent) return;
   response.send("岁迹邮箱验证成功，可以回到 App 继续使用。");
 });
 
@@ -191,9 +325,6 @@ app.post("/api/auth/password/reset/request", async (request, response) => {
         expiresAt: Date.now() + 10 * 60 * 1000,
         attempts: 0
       });
-      user.resetToken = null;
-      user.updatedAt = Date.now();
-      await writeStore(store);
       const mailResult = await trySendPasswordResetCodeEmail(user, code);
       await auditLog(request, "password_reset_requested", { email, emailSent: mailResult.sent });
       return response.json({ ok: true, emailSent: mailResult.sent, message: mailResult.message });
@@ -216,18 +347,21 @@ app.post("/api/auth/password/reset/confirm", async (request, response) => {
     validatePassword(password);
     verifyEmailCode(email, "reset", code);
 
-    const store = await readStore();
-    const user = store.users[email];
-    if (!user) {
-      return response.status(404).json({ message: "该邮箱尚未注册，请先创建账号" });
-    }
-
-    const passwordSalt = randomToken(16);
-    user.passwordSalt = passwordSalt;
-    user.passwordHash = hashPassword(password, passwordSalt);
-    user.resetToken = null;
-    user.updatedAt = Date.now();
-    await writeStore(store);
+    const user = await updateStore((store) => {
+      const target = store.users[email];
+      if (!target) {
+        const error = new Error("该邮箱尚未注册，请先创建账号");
+        error.status = 404;
+        throw error;
+      }
+      const passwordSalt = randomToken(16);
+      target.passwordSalt = passwordSalt;
+      target.passwordHash = hashPassword(password, passwordSalt);
+      target.resetToken = null;
+      target.authVersion = tokenVersion(target) + 1;
+      target.updatedAt = Date.now();
+      return target;
+    });
     clearBackendLoginFailure(email, request);
     await auditLog(request, "password_reset_confirmed", { email });
 
@@ -237,17 +371,6 @@ app.post("/api/auth/password/reset/confirm", async (request, response) => {
   }
 });
 
-app.post("/api/auth/oauth/:provider", async (request, response) => {
-  const provider = String(request.params.provider || "").toLowerCase();
-  if (!["qq", "wechat"].includes(provider)) {
-    return response.status(400).json({ message: "不支持的第三方登录方式" });
-  }
-  await auditLog(request, "oauth_requested", { provider });
-  response.status(501).json({
-    message: `${provider === "wechat" ? "微信" : "QQ"}登录服务端接口已预留，等待开放平台 AppID/AppSecret 与官方 SDK 回调接入。`
-  });
-});
-
 app.post("/api/sync/export/upload", async (request, response) => {
   try {
     enforceIpLimit(request, "sync-upload", 30, 60 * 60 * 1000);
@@ -255,17 +378,22 @@ app.post("/api/sync/export/upload", async (request, response) => {
     const data = String(request.body?.data || "");
     validateCloudBackupData(data);
 
-    const store = await readStore();
-    const storedUser = store.users[user.email];
     const size = Buffer.byteLength(data, "utf8");
-    storedUser.cloudBackup = {
-      schemaVersion: 1,
-      data,
-      size,
-      updatedAt: Date.now()
-    };
-    storedUser.updatedAt = Date.now();
-    await writeStore(store);
+    const storedUser = await updateStore((store) => {
+      const target = store.users[user.email];
+      if (!target) throw unauthorizedError("账号不存在，请重新登录");
+      if (target.cloudBackup?.data) {
+        target.previousCloudBackup = target.cloudBackup;
+      }
+      target.cloudBackup = {
+        schemaVersion: 1,
+        data,
+        size,
+        updatedAt: Date.now()
+      };
+      target.updatedAt = Date.now();
+      return target;
+    });
     await auditLog(request, "cloud_backup_uploaded", { email: user.email, size });
 
     response.json({
@@ -313,21 +441,43 @@ async function requireUser(request) {
     error.status = 401;
     throw error;
   }
-  const payload = jwt.verify(token, jwtSecret);
+  let payload;
+  try {
+    payload = jwt.verify(token, jwtSecret);
+  } catch {
+    throw unauthorizedError("登录状态已过期，请重新登录");
+  }
+  if (payload.type === "refresh") {
+    throw unauthorizedError("登录凭证类型无效，请重新登录");
+  }
   const store = await readStore();
-  const user = store.users[payload.email];
-  if (!user) {
-    const error = new Error("账号不存在");
-    error.status = 401;
-    throw error;
+  const user = store.users[normalizeEmail(payload.email)];
+  if (!user || !isTokenVersionValid(payload, user)) {
+    throw unauthorizedError("登录状态已失效，请重新登录");
   }
   return user;
 }
 
+function tokenVersion(user) {
+  return Number.isInteger(user?.authVersion) ? user.authVersion : 1;
+}
+
+function isTokenVersionValid(payload, user) {
+  const payloadVersion = Number.isInteger(payload?.authVersion) ? payload.authVersion : 1;
+  return payloadVersion === tokenVersion(user);
+}
+
+function unauthorizedError(message) {
+  const error = new Error(message);
+  error.status = 401;
+  return error;
+}
+
 function toSession(user, mailResult = null) {
+  const authVersion = tokenVersion(user);
   return {
-    accessToken: jwt.sign({ email: user.email }, jwtSecret, { expiresIn: "7d" }),
-    refreshToken: jwt.sign({ email: user.email, type: "refresh" }, jwtSecret, { expiresIn: "30d" }),
+    accessToken: jwt.sign({ email: user.email, authVersion }, jwtSecret, { expiresIn: "7d" }),
+    refreshToken: jwt.sign({ email: user.email, type: "refresh", authVersion }, jwtSecret, { expiresIn: "30d" }),
     email: user.email,
     emailVerified: Boolean(user.emailVerified),
     verificationEmailSent: mailResult?.sent ?? null,
@@ -336,7 +486,13 @@ function toSession(user, mailResult = null) {
 }
 
 async function trySendEmailCode(email, code, purpose) {
-  const label = purpose === "login" ? "登录" : purpose === "reset" ? "重置密码" : "注册";
+  const label = purpose === "login"
+    ? "登录"
+    : purpose === "reset"
+      ? "重置密码"
+      : purpose === "change-email"
+        ? "修改邮箱"
+        : "注册";
   return trySendMail(
     () => sendEmailCode(email, code, label),
     `${label}验证码已发送，请检查收件箱或垃圾邮件。`
@@ -491,7 +647,7 @@ function validateCloudBackupData(data) {
 
 function normalizePurpose(purpose) {
   const normalized = String(purpose || "login").trim().toLowerCase();
-  return ["register", "login", "reset"].includes(normalized) ? normalized : "login";
+  return ["register", "login", "reset", "change-email"].includes(normalized) ? normalized : "login";
 }
 
 function normalizeEmail(email) {
@@ -642,15 +798,42 @@ function randomToken(bytes) {
 async function readStore() {
   try {
     const raw = await fs.readFile(dataFile, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return { users: {} };
+    const store = JSON.parse(raw);
+    if (!store || typeof store !== "object" || !store.users || typeof store.users !== "object") {
+      throw new Error("账号数据文件格式无效");
+    }
+    return store;
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return { users: {} };
+    }
+    throw error;
   }
 }
 
 async function writeStore(store) {
   await fs.mkdir(path.dirname(dataFile), { recursive: true });
-  await fs.writeFile(dataFile, JSON.stringify(store, null, 2));
+  const temporaryFile = `${dataFile}.${process.pid}.${Date.now()}.tmp`;
+  const backupFile = `${dataFile}.bak`;
+  await fs.writeFile(temporaryFile, JSON.stringify(store, null, 2), { mode: 0o600 });
+  await fs.copyFile(dataFile, backupFile).catch((error) => {
+    if (error?.code !== "ENOENT") throw error;
+  });
+  await fs.rename(temporaryFile, dataFile);
+}
+
+async function updateStore(mutator) {
+  const operation = storeMutation.then(async () => {
+    const store = await readStore();
+    const result = await mutator(store);
+    await writeStore(store);
+    return result;
+  });
+  storeMutation = operation.then(
+    () => undefined,
+    () => undefined
+  );
+  return operation;
 }
 
 function sendError(response, error) {

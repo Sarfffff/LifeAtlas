@@ -52,7 +52,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.R
-import com.xiaoyin.lifeatlas.core.auth.SocialAuthProvider
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessCream
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMeadow
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessMuted
@@ -70,6 +69,11 @@ fun AuthRoute(
     val uiState by viewModel.uiState.collectAsState()
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showClearAccountConfirm by remember { mutableStateOf(false) }
+    var showChangeEmailDialog by remember { mutableStateOf(false) }
+    var showDeleteRemoteAccountConfirm by remember { mutableStateOf(false) }
+    var newEmail by remember { mutableStateOf("") }
+    var emailChangeCode by remember { mutableStateOf("") }
+    var securityPassword by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -99,7 +103,6 @@ fun AuthRoute(
                 onRefreshVerification = viewModel::refreshEmailVerification,
                 onResetPassword = viewModel::sendPasswordResetForCurrentAccount,
                 onLogout = { showLogoutConfirm = true },
-                onClearLocalAccount = { showClearAccountConfirm = true },
                 onContinue = onContinue
             )
         } else {
@@ -113,7 +116,6 @@ fun AuthRoute(
                 onLoginMethodChange = viewModel::switchLoginMethod,
                 onSendEmailCode = viewModel::sendEmailCode,
                 onSubmit = { viewModel.submit(onSuccess = onContinue) },
-                onSocialLogin = { provider -> viewModel.loginWithSocialProvider(provider, onSuccess = onContinue) },
                 onSwitchMode = viewModel::switchMode,
                 onForgotPassword = viewModel::switchPasswordResetMode,
                 onSkip = { viewModel.skipLogin(onSkipped = onContinue) }
@@ -121,7 +123,20 @@ fun AuthRoute(
         }
 
         if (uiState.session.isLoggedIn) {
-            AccountDangerZone(onClearLocalAccount = { showClearAccountConfirm = true })
+            AccountDangerZone(
+                remoteAccountEnabled = uiState.backendConfigured,
+                onChangeEmail = {
+                    newEmail = ""
+                    emailChangeCode = ""
+                    securityPassword = ""
+                    showChangeEmailDialog = true
+                },
+                onDeleteRemoteAccount = {
+                    securityPassword = ""
+                    showDeleteRemoteAccountConfirm = true
+                },
+                onClearLocalAccount = { showClearAccountConfirm = true }
+            )
         }
 
         if (uiState.session.isLoggedIn) {
@@ -203,6 +218,101 @@ fun AuthRoute(
             }
         )
     }
+
+    if (showChangeEmailDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!uiState.isLoading) showChangeEmailDialog = false },
+            title = { Text("修改登录邮箱") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("验证码会发送到新邮箱。确认时还需要输入当前密码。")
+                    OutlinedTextField(
+                        value = newEmail,
+                        onValueChange = { newEmail = it },
+                        label = { Text("新邮箱") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    )
+                    OutlinedButton(
+                        onClick = { viewModel.requestEmailChangeCode(newEmail) },
+                        enabled = !uiState.isSendingCode,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (uiState.isSendingCode) "发送中..." else "获取新邮箱验证码")
+                    }
+                    OutlinedTextField(
+                        value = emailChangeCode,
+                        onValueChange = { emailChangeCode = it.filter(Char::isDigit).take(6) },
+                        label = { Text("6 位验证码") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = securityPassword,
+                        onValueChange = { securityPassword = it },
+                        label = { Text("当前密码") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.confirmEmailChange(newEmail, emailChangeCode, securityPassword) {
+                            showChangeEmailDialog = false
+                        }
+                    },
+                    enabled = !uiState.isLoading
+                ) { Text(if (uiState.isLoading) "处理中..." else "确认修改") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChangeEmailDialog = false }, enabled = !uiState.isLoading) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    if (showDeleteRemoteAccountConfirm) {
+        AlertDialog(
+            onDismissRequest = { if (!uiState.isLoading) showDeleteRemoteAccountConfirm = false },
+            title = { Text("删除云端账号") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("这会永久删除云端账号和轻量备份。本机记忆与照片不会被删除，完整备份包也不受影响。")
+                    OutlinedTextField(
+                        value = securityPassword,
+                        onValueChange = { securityPassword = it },
+                        label = { Text("输入当前密码确认") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteRemoteAccount(securityPassword) {
+                            showDeleteRemoteAccountConfirm = false
+                        }
+                    },
+                    enabled = !uiState.isLoading
+                ) { Text(if (uiState.isLoading) "删除中..." else "永久删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteRemoteAccountConfirm = false }, enabled = !uiState.isLoading) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -250,7 +360,12 @@ private fun Long.formatAuthTime(): String {
 }
 
 @Composable
-private fun AccountDangerZone(onClearLocalAccount: () -> Unit) {
+private fun AccountDangerZone(
+    remoteAccountEnabled: Boolean,
+    onChangeEmail: () -> Unit,
+    onDeleteRemoteAccount: () -> Unit,
+    onClearLocalAccount: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = WildernessPaper),
@@ -259,10 +374,22 @@ private fun AccountDangerZone(onClearLocalAccount: () -> Unit) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("账号维护", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = WildernessTeal)
             Text(
-                "清除本地账号只会移除登录信息，不会删除你的记忆、照片、标签和地点。",
+                "可以修改登录邮箱、清除本机登录信息，或删除云端账号。本机记忆始终由你单独管理。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = WildernessMuted
             )
+            if (remoteAccountEnabled) {
+                OutlinedButton(onClick = onChangeEmail, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Email, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("修改登录邮箱")
+                }
+                OutlinedButton(onClick = onDeleteRemoteAccount, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.DeleteOutline, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("删除云端账号")
+                }
+            }
             OutlinedButton(onClick = onClearLocalAccount, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Outlined.DeleteOutline, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -283,7 +410,6 @@ private fun AuthFormCard(
     onLoginMethodChange: (AuthLoginMethod) -> Unit,
     onSendEmailCode: () -> Unit,
     onSubmit: () -> Unit,
-    onSocialLogin: (SocialAuthProvider) -> Unit,
     onSwitchMode: () -> Unit,
     onForgotPassword: () -> Unit,
     onSkip: () -> Unit
@@ -447,13 +573,6 @@ private fun AuthFormCard(
 
             AuthInlineFeedback(uiState = uiState)
 
-            SocialLoginRow(
-                wechatConfigured = uiState.wechatLoginConfigured,
-                qqConfigured = uiState.qqLoginConfigured,
-                enabled = !uiState.isLoading,
-                onSocialLogin = onSocialLogin
-            )
-
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { if (uiState.isPasswordResetMode) onForgotPassword() else onSwitchMode() }) {
                     Text(if (uiState.isRegisterMode) "已有账号，去登录" else "没有账号，去注册")
@@ -466,77 +585,6 @@ private fun AuthFormCard(
                 Text("跳过，继续本地使用")
             }
         }
-    }
-}
-
-@Composable
-private fun SocialLoginRow(
-    wechatConfigured: Boolean,
-    qqConfigured: Boolean,
-    enabled: Boolean,
-    onSocialLogin: (SocialAuthProvider) -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Spacer(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(1.dp)
-                    .background(WildernessMeadow.copy(alpha = 0.42f))
-            )
-            Text("其他方式", style = MaterialTheme.typography.labelMedium, color = WildernessMuted)
-            Spacer(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(1.dp)
-                    .background(WildernessMeadow.copy(alpha = 0.42f))
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SocialLoginButton(
-                text = "微信",
-                configured = wechatConfigured,
-                enabled = enabled,
-                onClick = { onSocialLogin(SocialAuthProvider.WeChat) },
-                modifier = Modifier.weight(1f)
-            )
-            SocialLoginButton(
-                text = "QQ",
-                configured = qqConfigured,
-                enabled = enabled,
-                onClick = { onSocialLogin(SocialAuthProvider.QQ) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-        if (!wechatConfigured || !qqConfigured) {
-            Text(
-                text = "第三方登录入口已整理好；配置开放平台 AppID 和后端 OAuth 后即可切换为真实登录。",
-                style = MaterialTheme.typography.bodySmall,
-                color = WildernessMuted
-            )
-        }
-    }
-}
-
-@Composable
-private fun SocialLoginButton(
-    text: String,
-    configured: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(44.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Text(
-            text = if (configured) text else "$text · 待配置",
-            fontWeight = FontWeight.Black,
-            maxLines = 1
-        )
     }
 }
 
@@ -626,7 +674,6 @@ private fun LoggedInCard(
     onRefreshVerification: () -> Unit,
     onResetPassword: () -> Unit,
     onLogout: () -> Unit,
-    onClearLocalAccount: () -> Unit,
     onContinue: () -> Unit
 ) {
     Card(

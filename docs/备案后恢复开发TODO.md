@@ -32,11 +32,19 @@ lifeatlas.auth.baseUrl=https://api.lifeatlas.cn
   - 登录成功/失败
   - 重置密码请求
   - 重置密码确认
-  - 第三方登录请求
-- 后端预留 QQ/微信 OAuth 接口：
-  - `POST /api/auth/oauth/qq`
-  - `POST /api/auth/oauth/wechat`
 - App 端连接重置提示已更新，不再提示“可能未备案”，改为检查 HTTPS、Nginx、防火墙和服务状态。
+- App 已切换到国内自建后端账号体系，不再依赖 Firebase 注册登录。
+- 邮箱验证码注册、邮箱验证码登录、密码登录、忘记密码已接入。
+- 登录态已加入 Refresh Token 续期，Access Token 过期后会自动刷新一次。
+- 账号与安全页已加入：
+  - 修改登录邮箱
+  - 删除云端账号
+  - 清除本机登录信息
+- 云端已支持轻量备份：
+  - 手动上传结构化数据
+  - 登录后自动尝试恢复
+  - 设置页手动从云端恢复
+- 轻量云备份不上传照片原文件，照片仍依赖本机缓存或完整备份包。
 
 ## 服务器部署操作
 
@@ -46,7 +54,7 @@ lifeatlas.auth.baseUrl=https://api.lifeatlas.cn
 cd /opt/lifeatlas/LifeAtlas
 git pull
 cd server
-npm install --omit=dev
+npm ci --omit=dev
 sudo systemctl restart lifeatlas-auth
 sudo systemctl status lifeatlas-auth
 curl https://api.lifeatlas.cn/health
@@ -96,6 +104,8 @@ SMTP_FROM="岁迹 <no-reply@mail.lifeatlas.cn>"
 
 ## 延后 TODO
 
-- QQ/微信真实登录：等待开放平台 AppID/AppSecret、Android 包名和签名审核通过。
-- 云同步：等待账号体系稳定后设计云端数据表、媒体上传、冲突合并和软删除策略。
+- 完整云同步：设计云端数据表、媒体上传、冲突合并、软删除和多设备变更记录。
+- 照片云端保存：服务器空间较小，后续建议接入阿里云 OSS 等对象存储，不直接塞进当前轻量服务器 JSON。
+- 后端数据库：个人使用阶段可继续 JSON + `.bak`，准备发布时迁移到 MySQL/PostgreSQL。
+- 登录安全增强：上线前补充图形验证码、人机校验、后台审计查询和异常 IP 处理。
 - 发布上线：准备隐私政策正式版、用户协议、Release 签名、应用市场截图和介绍文案。

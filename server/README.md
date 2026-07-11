@@ -9,11 +9,15 @@
 - `POST /api/auth/register`：邮箱验证码 + 密码注册。
 - `POST /api/auth/login`：邮箱密码登录。
 - `POST /api/auth/login/code`：邮箱验证码登录。
+- `POST /api/auth/token/refresh`：使用刷新凭证续期登录态。
 - `POST /api/auth/email/verification/request`：登录后重新发送邮箱验证码。
+- `POST /api/auth/email/change/code/request`：发送修改登录邮箱验证码。
+- `POST /api/auth/email/change/confirm`：验证码 + 当前密码确认修改邮箱。
 - `POST /api/auth/password/reset/request`：发送密码重置验证码。
 - `POST /api/auth/password/reset/confirm`：验证码确认并重置密码。
-- `POST /api/auth/oauth/qq`：QQ 登录服务端接口占位。
-- `POST /api/auth/oauth/wechat`：微信登录服务端接口占位。
+- `POST /api/auth/account/delete`：当前密码确认删除云端账号和轻量备份。
+- `POST /api/sync/export/upload`：登录后手动上传轻量云备份。
+- `GET /api/sync/export/latest`：登录后读取最近一次轻量云备份。
 
 ## 本地运行
 
@@ -46,7 +50,7 @@ lifeatlas.auth.baseUrl=https://api.lifeatlas.cn
 cd /opt/lifeatlas/LifeAtlas
 git pull
 cd server
-npm install --omit=dev
+npm ci --omit=dev
 sudo systemctl restart lifeatlas-auth
 sudo systemctl status lifeatlas-auth
 curl https://api.lifeatlas.cn/health
@@ -76,10 +80,19 @@ SMTP_FROM="岁迹 <no-reply@mail.lifeatlas.cn>"
 - 同一邮箱同一用途 1 小时最多发送 6 次验证码。
 - IP 维度限制注册、登录、验证码发送和密码重置频率。
 - 同一邮箱 + IP 连续登录失败 5 次后冷却 10 分钟。
+- Access Token 有效期 7 天，Refresh Token 有效期 30 天。
+- 修改邮箱、重置密码会提升账号登录版本，旧 Token 自动失效。
+- 修改登录邮箱和删除云端账号都需要当前密码二次确认。
 - 审计日志写入 `AUDIT_FILE`，默认 `./data/audit.log`。
+
+## 数据存储
+
+- 当前阶段使用 `DATA_FILE` 指向的 JSON 文件保存账号、登录邮箱和轻量云备份。
+- 写入采用串行队列和临时文件替换，减少并发写入覆盖风险。
+- 每次写入前会保留一份 `${DATA_FILE}.bak`，便于服务器异常时人工恢复。
+- 轻量云备份只保存结构化记录、标签、地点和照片引用，不保存照片原文件。
 
 ## 后续升级
 
 - 用 MySQL/PostgreSQL 替代 JSON 文件存储。
-- 第三方登录正式接入 QQ/微信官方 SDK 与服务端 openid/unionid 交换。
-- 云同步数据表、媒体上传、冲突合并和软删除。
+- 云同步数据表、媒体上传、冲突合并、软删除和设备管理。

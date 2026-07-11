@@ -59,6 +59,16 @@ class AuthApiClient(
         )
     }
 
+    suspend fun refreshSession(refreshToken: String): AuthApiSession {
+        return post<AuthApiSession>(
+            path = "/api/auth/token/refresh",
+            bodyText = json.encodeToString(
+                AuthApiRefreshRequest.serializer(),
+                AuthApiRefreshRequest(refreshToken)
+            )
+        )
+    }
+
     suspend fun requestEmailVerification(accessToken: String): AuthApiMailResult {
         return post<AuthApiMailResult>(
             path = "/api/auth/email/verification/request",
@@ -87,13 +97,41 @@ class AuthApiClient(
         )
     }
 
-    suspend fun loginWithOAuth(provider: String, code: String): AuthApiSession {
-        return post<AuthApiSession>(
-            path = "/api/auth/oauth/$provider",
+    suspend fun requestEmailChangeCode(accessToken: String, newEmail: String): AuthApiMailResult {
+        return post<AuthApiMailResult>(
+            path = "/api/auth/email/change/code/request",
             bodyText = json.encodeToString(
-                AuthApiOAuthLoginRequest.serializer(),
-                AuthApiOAuthLoginRequest(code)
-            )
+                AuthApiEmailChangeRequest.serializer(),
+                AuthApiEmailChangeRequest(newEmail)
+            ),
+            bearerToken = accessToken
+        )
+    }
+
+    suspend fun confirmEmailChange(
+        accessToken: String,
+        newEmail: String,
+        code: String,
+        password: String
+    ): AuthApiSession {
+        return post<AuthApiSession>(
+            path = "/api/auth/email/change/confirm",
+            bodyText = json.encodeToString(
+                AuthApiEmailChangeConfirmRequest.serializer(),
+                AuthApiEmailChangeConfirmRequest(newEmail, code, password)
+            ),
+            bearerToken = accessToken
+        )
+    }
+
+    suspend fun deleteAccount(accessToken: String, password: String): AuthApiActionResult {
+        return post<AuthApiActionResult>(
+            path = "/api/auth/account/delete",
+            bodyText = json.encodeToString(
+                AuthApiPasswordRequest.serializer(),
+                AuthApiPasswordRequest(password)
+            ),
+            bearerToken = accessToken
         )
     }
 
@@ -144,7 +182,10 @@ class AuthApiClient(
                     val apiError = runCatching {
                         json.decodeFromString(AuthApiError.serializer(), responseText)
                     }.getOrNull()
-                    error(apiError?.message ?: "服务器请求失败：HTTP $responseCode")
+                    throw AuthApiException(
+                        statusCode = responseCode,
+                        message = apiError?.message ?: "服务器请求失败：HTTP $responseCode"
+                    )
                 }
                 if (T::class == Unit::class) {
                     Unit as T
@@ -170,11 +211,17 @@ class AuthApiClient(
 }
 
 private fun Throwable.toUserFacingNetworkError(): Throwable {
+    if (this is AuthApiException) return this
     if (this is SocketException && message?.contains("reset", ignoreCase = true) == true) {
         return IllegalStateException("无法连接账号服务：连接被重置。请检查 HTTPS 证书、Nginx 反向代理、服务器防火墙和账号服务是否正常运行。")
     }
     return this
 }
+
+class AuthApiException(
+    val statusCode: Int,
+    override val message: String
+) : IllegalStateException(message)
 
 @Serializable
 data class AuthApiSession(
@@ -198,6 +245,12 @@ data class AuthApiCloudBackupResult(
     val updatedAt: Long? = null,
     val size: Long = 0L,
     val message: String = "云端轻量备份已保存"
+)
+
+@Serializable
+data class AuthApiActionResult(
+    val ok: Boolean = true,
+    val message: String
 )
 
 @Serializable
@@ -242,6 +295,11 @@ private data class AuthApiEmailCodeLoginRequest(
 )
 
 @Serializable
+private data class AuthApiRefreshRequest(
+    val refreshToken: String
+)
+
+@Serializable
 private data class AuthApiEmailRequest(
     val email: String
 )
@@ -254,8 +312,20 @@ private data class AuthApiPasswordResetConfirmRequest(
 )
 
 @Serializable
-private data class AuthApiOAuthLoginRequest(
-    val code: String
+private data class AuthApiEmailChangeRequest(
+    val newEmail: String
+)
+
+@Serializable
+private data class AuthApiEmailChangeConfirmRequest(
+    val newEmail: String,
+    val code: String,
+    val password: String
+)
+
+@Serializable
+private data class AuthApiPasswordRequest(
+    val password: String
 )
 
 @Serializable
