@@ -11,6 +11,7 @@ import com.xiaoyin.lifeatlas.core.datastore.RecordPreferenceSettings
 import com.xiaoyin.lifeatlas.core.datastore.ReminderSettings
 import com.xiaoyin.lifeatlas.core.datastore.UserProfileSettings
 import com.xiaoyin.lifeatlas.core.reminder.LocalReminderScheduler
+import com.xiaoyin.lifeatlas.core.media.ProfileAvatarStorage
 import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
 import com.xiaoyin.lifeatlas.data.export.LifeAtlasImportPreview
@@ -70,6 +71,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val exportService = ExportServiceProvider.exportService(application)
     private val settingsRepository = AppSettingsRepository(application)
     private val authRepository = AuthRepository(application)
+    private val avatarStorage = ProfileAvatarStorage(application)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState
@@ -118,8 +120,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun updateProfile(displayName: String, signature: String, avatarUri: String?) {
         viewModelScope.launch {
-            settingsRepository.updateProfile(displayName, signature, avatarUri)
-            _uiState.update { it.copy(message = SettingsMessage("资料已更新", SettingsMessageType.Success)) }
+            runCatching {
+                val storedAvatarUri = withContext(Dispatchers.IO) {
+                    avatarStorage.importAvatar(avatarUri, _uiState.value.profile.avatarUri)
+                }
+                settingsRepository.updateProfile(displayName, signature, storedAvatarUri)
+            }.onSuccess {
+                _uiState.update { it.copy(message = SettingsMessage("资料已更新", SettingsMessageType.Success)) }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(message = SettingsMessage(error.message ?: "头像保存失败", SettingsMessageType.Error))
+                }
+            }
         }
     }
 

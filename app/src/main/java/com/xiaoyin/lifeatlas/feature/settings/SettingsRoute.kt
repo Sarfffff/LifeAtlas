@@ -2,6 +2,7 @@ package com.xiaoyin.lifeatlas.feature.settings
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -64,6 +65,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -531,6 +533,8 @@ private fun ProfileAvatar(avatarUri: String?) {
             model = avatarUri,
             contentDescription = "头像",
             contentScale = ContentScale.Crop,
+            placeholder = painterResource(id = R.drawable.ic_launcher_mascot_text),
+            error = painterResource(id = R.drawable.ic_launcher_mascot_text),
             modifier = modifier
         )
     }
@@ -545,8 +549,14 @@ private fun ProfileEditorDialog(
     var name by remember(profile) { mutableStateOf(profile.displayName) }
     var signature by remember(profile) { mutableStateOf(profile.signature) }
     var avatarUri by remember(profile) { mutableStateOf(profile.avatarUri) }
+    val context = LocalContext.current
     val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) avatarUri = uri.toString()
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            avatarUri = uri.toString()
+        }
     }
 
     AlertDialog(

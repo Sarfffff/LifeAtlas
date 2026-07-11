@@ -42,6 +42,9 @@ interface MemoryRecordDao {
     @Query("SELECT COUNT(*) FROM memory_records WHERE deleted_at IS NULL")
     suspend fun count(): Int
 
+    @Query("SELECT COUNT(*) FROM memory_records")
+    suspend fun countIncludingDeleted(): Int
+
     @Query("SELECT * FROM memory_records WHERE deleted_at IS NULL ORDER BY record_time DESC")
     suspend fun getAll(): List<MemoryRecordEntity>
 

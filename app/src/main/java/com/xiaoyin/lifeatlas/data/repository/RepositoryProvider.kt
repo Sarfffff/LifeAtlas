@@ -12,7 +12,11 @@ object RepositoryProvider {
             photoDao = database.photoDao(),
             tagDao = database.tagDao(),
             favoriteRecordDao = database.favoriteRecordDao(),
-            photoCacheManager = PhotoCacheManager(context)
+            photoCacheManager = PhotoCacheManager(context),
+            starterContentPreferences = context.applicationContext.getSharedPreferences(
+                "lifeatlas_starter_content",
+                Context.MODE_PRIVATE
+            )
         )
     }
 }
