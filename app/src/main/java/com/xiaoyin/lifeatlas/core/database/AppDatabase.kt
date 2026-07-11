@@ -24,7 +24,7 @@ import com.xiaoyin.lifeatlas.data.entity.TagEntity
         MemoryTagCrossRefEntity::class,
         FavoriteRecordEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -104,13 +104,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val migration4To5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `memory_records` ADD COLUMN `deleted_at` INTEGER")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_records_deleted_at` ON `memory_records` (`deleted_at`)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "lifeatlas.db"
-                ).addMigrations(migration1To2, migration2To3, migration3To4).build().also { instance = it }
+                ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5).build().also { instance = it }
             }
         }
     }

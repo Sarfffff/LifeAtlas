@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -1068,6 +1070,8 @@ private fun MapLightSheetV2(
     onDetailClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var handleDragDistance by remember { mutableFloatStateOf(0f) }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -1078,15 +1082,42 @@ private fun MapLightSheetV2(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(onCollapse) {
+                        detectVerticalDragGestures(
+                            onDragStart = { handleDragDistance = 0f },
+                            onVerticalDrag = { change, dragAmount ->
+                                change.consume()
+                                handleDragDistance += dragAmount
+                            },
+                            onDragEnd = {
+                                if (handleDragDistance > 36f) onCollapse()
+                                handleDragDistance = 0f
+                            },
+                            onDragCancel = { handleDragDistance = 0f }
+                        )
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Spacer(modifier = Modifier.weight(1f))
                 Box(
                     modifier = Modifier
-                        .width(48.dp)
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(WildernessMuted.copy(alpha = 0.32f))
-                )
+                        .width(72.dp)
+                        .height(30.dp)
+                        .clip(RoundedCornerShape(15.dp))
+                        .clickable(onClick = onCollapse),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(48.dp)
+                            .height(5.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(WildernessMuted.copy(alpha = 0.42f))
+                    )
+                }
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
                     TextButton(onClick = onCollapse) {
                         Text("收起", fontWeight = FontWeight.Black, color = WildernessMuted)

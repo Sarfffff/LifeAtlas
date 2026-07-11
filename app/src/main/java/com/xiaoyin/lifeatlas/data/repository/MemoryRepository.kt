@@ -34,6 +34,10 @@ class MemoryRepository(
         }
     }
 
+    fun observeDeletedRecords(): Flow<List<MemoryRecord>> {
+        return memoryRecordDao.observeDeleted().map { records -> records.map { it.toModel() } }
+    }
+
     fun observeLocatedRecords(): Flow<List<MemoryRecord>> {
         return memoryRecordDao.observeLocatedRecords().map { records ->
             records.map { it.toModel() }
@@ -58,6 +62,10 @@ class MemoryRepository(
 
     fun observeAllPhotos(): Flow<List<Photo>> {
         return photoDao.observeAll().map { photos -> photos.map { it.toModel() } }
+    }
+
+    fun observeAllPhotosIncludingDeleted(): Flow<List<Photo>> {
+        return photoDao.observeAllIncludingDeleted().map { photos -> photos.map { it.toModel() } }
     }
 
     fun observeFirstPhotosByRecord(): Flow<Map<Long, Photo>> {
@@ -131,8 +139,23 @@ class MemoryRepository(
     }
 
     suspend fun deleteRecord(id: Long) {
+        memoryRecordDao.moveToTrash(id, System.currentTimeMillis())
+    }
+
+    suspend fun restoreRecord(id: Long) {
+        memoryRecordDao.restoreFromTrash(id, System.currentTimeMillis())
+    }
+
+    suspend fun permanentlyDeleteRecord(id: Long) {
         deletePhotoCaches(photoDao.getByRecordId(id))
         memoryRecordDao.deleteById(id)
+    }
+
+    suspend fun emptyTrash() {
+        val deletedRecords = memoryRecordDao.getAllIncludingDeleted().filter { it.deletedAt != null }
+        val photos = deletedRecords.flatMap { photoDao.getByRecordId(it.id) }
+        memoryRecordDao.deleteAllFromTrash()
+        deletePhotoCaches(photos)
     }
 
     suspend fun setFavorite(recordId: Long, favorite: Boolean) {

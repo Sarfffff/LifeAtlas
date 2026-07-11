@@ -8,7 +8,9 @@ import com.xiaoyin.lifeatlas.core.auth.AuthRepository
 import com.xiaoyin.lifeatlas.core.datastore.AppSettingsRepository
 import com.xiaoyin.lifeatlas.core.datastore.CloudSyncSettings
 import com.xiaoyin.lifeatlas.core.datastore.RecordPreferenceSettings
+import com.xiaoyin.lifeatlas.core.datastore.ReminderSettings
 import com.xiaoyin.lifeatlas.core.datastore.UserProfileSettings
+import com.xiaoyin.lifeatlas.core.reminder.LocalReminderScheduler
 import com.xiaoyin.lifeatlas.data.export.BackupKind
 import com.xiaoyin.lifeatlas.data.export.ExportServiceProvider
 import com.xiaoyin.lifeatlas.data.export.LifeAtlasImportPreview
@@ -27,6 +29,7 @@ data class SettingsUiState(
     val localFirstEnabled: Boolean = true,
     val profile: UserProfileSettings = UserProfileSettings(),
     val recordPreferences: RecordPreferenceSettings = RecordPreferenceSettings(),
+    val reminderSettings: ReminderSettings = ReminderSettings(),
     val cloudSyncSettings: CloudSyncSettings = CloudSyncSettings(),
     val firebaseConfigured: Boolean = false,
     val backendConfigured: Boolean = false,
@@ -77,12 +80,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 settingsRepository.localFirstEnabled,
                 settingsRepository.userProfile,
                 settingsRepository.recordPreferences,
-                settingsRepository.cloudSyncSettings
-            ) { localFirstEnabled, profile, recordPreferences, cloudSyncSettings ->
+                settingsRepository.cloudSyncSettings,
+                settingsRepository.reminderSettings
+            ) { localFirstEnabled, profile, recordPreferences, cloudSyncSettings, reminderSettings ->
                 SettingsUiState(
                     localFirstEnabled = localFirstEnabled,
                     profile = profile,
                     recordPreferences = recordPreferences,
+                    reminderSettings = reminderSettings,
                     cloudSyncSettings = cloudSyncSettings,
                     firebaseConfigured = authRepository.isFirebaseActive(),
                     backendConfigured = authRepository.isBackendConfigured(),
@@ -94,6 +99,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         localFirstEnabled = settingsState.localFirstEnabled,
                         profile = settingsState.profile,
                         recordPreferences = settingsState.recordPreferences,
+                        reminderSettings = settingsState.reminderSettings,
                         cloudSyncSettings = settingsState.cloudSyncSettings,
                         firebaseConfigured = settingsState.firebaseConfigured,
                         backendConfigured = settingsState.backendConfigured,
@@ -130,13 +136,38 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun updateReminderSettings(memoryOfTheDayEnabled: Boolean, weeklyReviewEnabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateReminderSettings(memoryOfTheDayEnabled, weeklyReviewEnabled)
+            LocalReminderScheduler.applySettings(
+                getApplication(),
+                memoryOfTheDayEnabled,
+                weeklyReviewEnabled
+            )
+            _uiState.update {
+                it.copy(
+                    message = SettingsMessage(
+                        if (memoryOfTheDayEnabled || weeklyReviewEnabled) "本地提醒已更新" else "本地提醒已关闭",
+                        SettingsMessageType.Success
+                    )
+                )
+            }
+        }
+    }
+
+    fun onNotificationPermissionDenied() {
+        _uiState.update {
+            it.copy(message = SettingsMessage("未获得通知权限，无法开启本地提醒", SettingsMessageType.Error))
+        }
+    }
+
     fun onCloudSyncEnabledChange(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setCloudSyncEnabled(enabled)
             _uiState.update {
                 it.copy(
                     message = SettingsMessage(
-                        if (enabled) "云同步已标记为启用。当前仍保持本地优先，正式上传前会再次确认。" else "云同步已关闭，数据继续只保留在本机和备份包中。",
+                        if (enabled) "自动轻量备份已开启，记录变化后会延迟上传结构化快照。" else "自动轻量备份已关闭，仍可手动上传或导出完整备份包。",
                         SettingsMessageType.Info
                     )
                 )

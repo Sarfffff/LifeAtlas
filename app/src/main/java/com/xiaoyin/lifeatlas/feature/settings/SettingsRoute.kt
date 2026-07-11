@@ -1,5 +1,7 @@
 package com.xiaoyin.lifeatlas.feature.settings
 
+import android.Manifest
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -27,10 +29,12 @@ import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.SaveAlt
@@ -69,6 +73,7 @@ import coil.compose.AsyncImage
 import com.xiaoyin.lifeatlas.BuildConfig
 import com.xiaoyin.lifeatlas.R
 import com.xiaoyin.lifeatlas.core.datastore.RecordPreferenceSettings
+import com.xiaoyin.lifeatlas.core.datastore.ReminderSettings
 import com.xiaoyin.lifeatlas.core.datastore.UserProfileSettings
 import com.xiaoyin.lifeatlas.core.map.MapSdkConfig
 import com.xiaoyin.lifeatlas.core.ui.theme.WildernessCream
@@ -88,6 +93,7 @@ fun SettingsRoute(
     onTagManagementClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onAnnualReviewClick: () -> Unit,
+    onTrashClick: () -> Unit,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -98,8 +104,20 @@ fun SettingsRoute(
     var showCloudRestoreConfirm by remember { mutableStateOf(false) }
     var showMapPanel by remember { mutableStateOf(false) }
     var showPreferencePanel by remember { mutableStateOf(false) }
+    var showReminderPanel by remember { mutableStateOf(false) }
     var showAccountPanel by remember { mutableStateOf(false) }
     var showPrivacyPanel by remember { mutableStateOf(false) }
+    var pendingReminderSettings by remember { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val pending = pendingReminderSettings
+        pendingReminderSettings = null
+        if (granted && pending != null) {
+            viewModel.updateReminderSettings(pending.first, pending.second)
+        } else if (!granted) {
+            viewModel.onNotificationPermissionDenied()
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) viewModel.writeExport(uri) else viewModel.onExportLaunchHandled()
@@ -153,6 +171,13 @@ fun SettingsRoute(
                 subtitle = "查看当前同步方式和后续云同步计划",
                 onClick = { showCloudSyncPanel = true }
             )
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.DeleteSweep,
+                title = "回收站",
+                subtitle = "恢复误删记忆或永久清理",
+                onClick = onTrashClick
+            )
         }
 
         SettingsSection(title = "地图与记录") {
@@ -161,6 +186,18 @@ fun SettingsRoute(
                 title = "年度回顾",
                 subtitle = "按年份回看记忆、照片、地点和心情",
                 onClick = onAnnualReviewClick
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.Notifications,
+                title = "记忆提醒",
+                subtitle = when {
+                    uiState.reminderSettings.memoryOfTheDayEnabled && uiState.reminderSettings.weeklyReviewEnabled -> "今日记忆与每周回顾已开启"
+                    uiState.reminderSettings.memoryOfTheDayEnabled -> "今日记忆提醒已开启"
+                    uiState.reminderSettings.weeklyReviewEnabled -> "每周回顾提醒已开启"
+                    else -> "设置今日记忆和每周回顾"
+                },
+                onClick = { showReminderPanel = true }
             )
             SettingsDivider()
             SettingsRow(
@@ -345,6 +382,23 @@ fun SettingsRoute(
                 onTagManagementClick()
             },
             onDismiss = { showPreferencePanel = false }
+        )
+    }
+
+    if (showReminderPanel) {
+        ReminderSettingsDialog(
+            settings = uiState.reminderSettings,
+            onChange = { memoryOfDay, weeklyReview ->
+                val needsPermission = (memoryOfDay || weeklyReview) &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                if (needsPermission) {
+                    pendingReminderSettings = memoryOfDay to weeklyReview
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    viewModel.updateReminderSettings(memoryOfDay, weeklyReview)
+                }
+            },
+            onDismiss = { showReminderPanel = false }
         )
     }
 
@@ -604,16 +658,16 @@ private fun CloudSyncDialog(
         title = { Text("多设备同步") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("当前提供手动轻量云备份：保存记录、标签、地点和照片引用，不上传照片原文件。每次上传前都由你确认。")
+                Text("轻量云备份会保存记录、标签、地点、收藏和照片引用，不上传照片原文件。开启自动备份后，本机数据变化会延迟数秒上传。")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("轻量云备份", fontWeight = FontWeight.Black, color = WildernessTeal)
+                        Text("自动轻量备份", fontWeight = FontWeight.Black, color = WildernessTeal)
                         Text(
-                            if (uiState.cloudSyncSettings.enabled) "已启用手动备份入口" else "未启用，当前仅使用本地备份包",
+                            if (uiState.cloudSyncSettings.enabled) "记录变化后自动保存结构化快照" else "未启用，当前仅手动上传",
                             style = MaterialTheme.typography.bodyMedium,
                             color = WildernessMuted
                         )
@@ -625,7 +679,7 @@ private fun CloudSyncDialog(
                 }
                 CloudSyncStatusLine("账号服务", uiState.authModeLabel)
                 CloudSyncStatusLine("国内后端", if (uiState.backendConfigured) "已配置" else "未配置")
-                CloudSyncStatusLine("当前上传策略", "仅手动上传，不自动上传")
+                CloudSyncStatusLine("当前上传策略", if (uiState.cloudSyncSettings.enabled) "变化后延迟 6 秒自动上传" else "仅手动上传")
                 CloudSyncStatusLine("最近上传", uiState.cloudSyncSettings.lastPreparedAt?.formatDateTime() ?: "尚未上传")
                 Text(
                     "照片原文件请使用完整备份包保存。轻量备份适合服务器空间有限时保护结构化记录。",
@@ -746,6 +800,45 @@ private fun RecordPreferenceDialog(
                 Text("取消")
             }
         }
+    )
+}
+
+@Composable
+private fun ReminderSettingsDialog(
+    settings: ReminderSettings,
+    onChange: (Boolean, Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("记忆提醒", fontWeight = FontWeight.Black, color = WildernessTeal) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("提醒完全由手机本地生成，不会上传你的记录内容。", color = WildernessMuted)
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("今日记忆", fontWeight = FontWeight.Black, color = WildernessTeal)
+                        Text("每天 20:00 提醒回看往年的今天", color = WildernessMuted)
+                    }
+                    Switch(
+                        checked = settings.memoryOfTheDayEnabled,
+                        onCheckedChange = { onChange(it, settings.weeklyReviewEnabled) }
+                    )
+                }
+                HorizontalDivider(color = WildernessLine)
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("每周回顾", fontWeight = FontWeight.Black, color = WildernessTeal)
+                        Text("每周日 20:00 回看本周脚印", color = WildernessMuted)
+                    }
+                    Switch(
+                        checked = settings.weeklyReviewEnabled,
+                        onCheckedChange = { onChange(settings.memoryOfTheDayEnabled, it) }
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } }
     )
 }
 

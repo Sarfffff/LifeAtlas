@@ -107,6 +107,7 @@ class LifeAtlasExportServiceTest {
             memoryRecordDao = database.memoryRecordDao(),
             photoDao = database.photoDao(),
             tagDao = database.tagDao(),
+            favoriteRecordDao = database.favoriteRecordDao(),
             photoCacheManager = PhotoCacheManager(context)
         )
     }

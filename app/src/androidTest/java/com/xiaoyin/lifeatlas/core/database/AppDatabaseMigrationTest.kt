@@ -91,6 +91,27 @@ class AppDatabaseMigrationTest {
         db.close()
     }
 
+    @Test
+    @Throws(IOException::class)
+    fun migrate4To5_keepsRecordsAndAddsRecycleBinColumn() {
+        helper.createDatabase(testDbName, 4).apply {
+            insertVersion1Record()
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            testDbName,
+            5,
+            true,
+            AppDatabase.migration4To5
+        )
+
+        assertEquals(1, db.queryCount("memory_records"))
+        assertEquals(1, db.queryCountWhere("memory_records", "deleted_at IS NULL"))
+        assertIndexExists(db, "index_memory_records_deleted_at")
+        db.close()
+    }
+
     private fun SupportSQLiteDatabase.insertVersion1Record() {
         execSQL(
             """
@@ -121,6 +142,13 @@ class AppDatabaseMigrationTest {
 
     private fun SupportSQLiteDatabase.queryCount(table: String): Int {
         query("SELECT COUNT(*) FROM $table").use { cursor ->
+            cursor.moveToFirst()
+            return cursor.getInt(0)
+        }
+    }
+
+    private fun SupportSQLiteDatabase.queryCountWhere(table: String, where: String): Int {
+        query("SELECT COUNT(*) FROM $table WHERE $where").use { cursor ->
             cursor.moveToFirst()
             return cursor.getInt(0)
         }

@@ -10,7 +10,8 @@ data class LifeAtlasExport(
     val records: List<ExportRecord>,
     val photos: List<ExportPhoto>,
     val tags: List<ExportTag>,
-    val recordTags: List<ExportRecordTag>
+    val recordTags: List<ExportRecordTag>,
+    val favoriteRecordIds: List<Long> = emptyList()
 )
 
 @Serializable
@@ -25,7 +26,8 @@ data class ExportRecord(
     val mood: String?,
     val importance: Int,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val deletedAt: Long? = null
 )
 
 @Serializable

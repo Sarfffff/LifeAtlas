@@ -25,8 +25,13 @@ data class RecordPreferenceSettings(
 
 data class CloudSyncSettings(
     val enabled: Boolean = false,
-    val provider: String = "Firebase",
+    val provider: String = "岁迹云端",
     val lastPreparedAt: Long? = null
+)
+
+data class ReminderSettings(
+    val memoryOfTheDayEnabled: Boolean = false,
+    val weeklyReviewEnabled: Boolean = false
 )
 
 class AppSettingsRepository(context: Context) {
@@ -59,8 +64,15 @@ class AppSettingsRepository(context: Context) {
     val cloudSyncSettings: Flow<CloudSyncSettings> = dataStore.data.map { preferences ->
         CloudSyncSettings(
             enabled = preferences[CLOUD_SYNC_ENABLED] ?: false,
-            provider = preferences[CLOUD_SYNC_PROVIDER] ?: "Firebase",
+            provider = preferences[CLOUD_SYNC_PROVIDER] ?: "岁迹云端",
             lastPreparedAt = preferences[CLOUD_SYNC_LAST_PREPARED_AT]
+        )
+    }
+
+    val reminderSettings: Flow<ReminderSettings> = dataStore.data.map { preferences ->
+        ReminderSettings(
+            memoryOfTheDayEnabled = preferences[REMINDER_MEMORY_OF_DAY] ?: false,
+            weeklyReviewEnabled = preferences[REMINDER_WEEKLY_REVIEW] ?: false
         )
     }
 
@@ -99,13 +111,20 @@ class AppSettingsRepository(context: Context) {
     suspend fun setCloudSyncEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[CLOUD_SYNC_ENABLED] = enabled
-            preferences[CLOUD_SYNC_PROVIDER] = "Firebase"
+            preferences[CLOUD_SYNC_PROVIDER] = "岁迹云端"
         }
     }
 
     suspend fun markCloudSyncPrepared() {
         dataStore.edit { preferences ->
             preferences[CLOUD_SYNC_LAST_PREPARED_AT] = System.currentTimeMillis()
+        }
+    }
+
+    suspend fun updateReminderSettings(memoryOfTheDayEnabled: Boolean, weeklyReviewEnabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[REMINDER_MEMORY_OF_DAY] = memoryOfTheDayEnabled
+            preferences[REMINDER_WEEKLY_REVIEW] = weeklyReviewEnabled
         }
     }
 
@@ -121,5 +140,7 @@ class AppSettingsRepository(context: Context) {
         val CLOUD_SYNC_ENABLED = booleanPreferencesKey("cloud_sync_enabled")
         val CLOUD_SYNC_PROVIDER = stringPreferencesKey("cloud_sync_provider")
         val CLOUD_SYNC_LAST_PREPARED_AT = longPreferencesKey("cloud_sync_last_prepared_at")
+        val REMINDER_MEMORY_OF_DAY = booleanPreferencesKey("reminder_memory_of_day")
+        val REMINDER_WEEKLY_REVIEW = booleanPreferencesKey("reminder_weekly_review")
     }
 }

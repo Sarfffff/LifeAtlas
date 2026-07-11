@@ -274,7 +274,7 @@ private fun RecentMemories(
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text("删除最近记忆") },
-            text = { Text("确定删除「${record.title}」吗？相关照片记录也会一起移除。") },
+            text = { Text("确定把「${record.title}」移入回收站吗？之后仍可在设置中恢复。") },
             confirmButton = {
                 TextButton(
                     onClick = {

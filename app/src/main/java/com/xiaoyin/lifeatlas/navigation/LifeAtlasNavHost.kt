@@ -52,6 +52,7 @@ import com.xiaoyin.lifeatlas.feature.review.AnnualReviewRoute
 import com.xiaoyin.lifeatlas.feature.settings.SettingsRoute
 import com.xiaoyin.lifeatlas.feature.settings.TagManagementRoute
 import com.xiaoyin.lifeatlas.feature.timeline.TimelineRoute
+import com.xiaoyin.lifeatlas.feature.trash.TrashRoute
 import kotlinx.coroutines.launch
 
 @Composable
@@ -195,6 +196,9 @@ fun LifeAtlasNavHost() {
                     },
                     onAnnualReviewClick = {
                         navController.navigate(LifeAtlasDestination.AnnualReview.route)
+                    },
+                    onTrashClick = {
+                        navController.navigate(LifeAtlasDestination.Trash.route)
                     }
                 )
             }
@@ -256,6 +260,9 @@ fun LifeAtlasNavHost() {
                         navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
                     }
                 )
+            }
+            composable(LifeAtlasDestination.Trash.route) {
+                TrashRoute(onBack = { navController.popBackStack() })
             }
             composable(
                 route = LifeAtlasDestination.CityDetail.route,

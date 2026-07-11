@@ -3,12 +3,14 @@ package com.xiaoyin.lifeatlas.data.export
 import com.xiaoyin.lifeatlas.data.dao.MemoryRecordDao
 import com.xiaoyin.lifeatlas.data.dao.PhotoDao
 import com.xiaoyin.lifeatlas.data.dao.TagDao
+import com.xiaoyin.lifeatlas.data.dao.FavoriteRecordDao
 import com.xiaoyin.lifeatlas.core.database.AppDatabase
 import com.xiaoyin.lifeatlas.core.media.PhotoCacheManager
 import com.xiaoyin.lifeatlas.data.entity.MemoryRecordEntity
 import com.xiaoyin.lifeatlas.data.entity.MemoryTagCrossRefEntity
 import com.xiaoyin.lifeatlas.data.entity.PhotoEntity
 import com.xiaoyin.lifeatlas.data.entity.TagEntity
+import com.xiaoyin.lifeatlas.data.entity.FavoriteRecordEntity
 import androidx.room.withTransaction
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -25,6 +27,7 @@ class LifeAtlasExportService(
     private val memoryRecordDao: MemoryRecordDao,
     private val photoDao: PhotoDao,
     private val tagDao: TagDao,
+    private val favoriteRecordDao: FavoriteRecordDao,
     private val photoCacheManager: PhotoCacheManager
 ) {
     private val json = Json {
@@ -37,7 +40,7 @@ class LifeAtlasExportService(
             schemaVersion = 1,
             app = "LifeAtlas",
             exportedAt = System.currentTimeMillis(),
-            records = memoryRecordDao.getAll().map {
+            records = memoryRecordDao.getAllIncludingDeleted().map {
                 ExportRecord(
                     id = it.id,
                     title = it.title,
@@ -49,7 +52,8 @@ class LifeAtlasExportService(
                     mood = it.mood,
                     importance = it.importance,
                     createdAt = it.createdAt,
-                    updatedAt = it.updatedAt
+                    updatedAt = it.updatedAt,
+                    deletedAt = it.deletedAt
                 )
             },
             photos = photoDao.getAll().map {
@@ -78,7 +82,8 @@ class LifeAtlasExportService(
                     recordId = it.recordId,
                     tagId = it.tagId
                 )
-            }
+            },
+            favoriteRecordIds = favoriteRecordDao.getFavoriteRecordIds()
         )
 
         return json.encodeToString(export)
@@ -123,7 +128,7 @@ class LifeAtlasExportService(
         }
 
         return LifeAtlasBackupResult(
-            recordCount = memoryRecordDao.getAll().size,
+            recordCount = memoryRecordDao.getAllIncludingDeleted().size,
             photoCount = photoDao.getAll().size,
             mediaFileCount = mediaFiles.size
         )
@@ -176,7 +181,8 @@ class LifeAtlasExportService(
                         mood = it.mood,
                         importance = it.importance,
                         createdAt = it.createdAt,
-                        updatedAt = it.updatedAt
+                        updatedAt = it.updatedAt,
+                        deletedAt = it.deletedAt
                     )
                 }
             )
@@ -221,6 +227,15 @@ class LifeAtlasExportService(
                     )
                 }
             )
+
+            favoriteRecordDao.clearAll()
+            export.favoriteRecordIds
+                .filter { favoriteId -> export.records.any { it.id == favoriteId && it.deletedAt == null } }
+                .forEach { favoriteId ->
+                    favoriteRecordDao.insert(
+                        FavoriteRecordEntity(recordId = favoriteId, createdAt = System.currentTimeMillis())
+                    )
+                }
         }
 
         oldCachePaths.forEach(photoCacheManager::deleteCachedPhoto)

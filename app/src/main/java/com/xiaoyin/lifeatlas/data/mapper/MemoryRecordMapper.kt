@@ -15,7 +15,8 @@ fun MemoryRecordEntity.toModel(): MemoryRecord {
         mood = mood,
         importance = importance,
         createdAt = createdAt,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
     )
 }
 
@@ -31,7 +32,7 @@ fun MemoryRecord.toEntity(): MemoryRecordEntity {
         mood = mood,
         importance = importance,
         createdAt = createdAt,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
     )
 }
-

@@ -154,7 +154,7 @@ fun RecordDetailRoute(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("删除记录") },
-            text = { Text("这条记录会从本地数据库中删除，关联照片记录也会一起删除。此操作暂时无法撤销。") },
+            text = { Text("这条记录会移入回收站，暂时不会清理照片。你可以在设置的回收站中恢复或永久删除。") },
             confirmButton = {
                 TextButton(
                     enabled = !uiState.isDeleting,

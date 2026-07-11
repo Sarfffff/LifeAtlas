@@ -11,6 +11,6 @@ data class MemoryRecord(
     val mood: String?,
     val importance: Int,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val deletedAt: Long? = null
 )
-
