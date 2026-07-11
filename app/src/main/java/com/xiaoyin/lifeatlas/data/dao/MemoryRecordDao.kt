@@ -74,4 +74,13 @@ interface MemoryRecordDao {
 
     @Query("DELETE FROM memory_records WHERE deleted_at IS NOT NULL")
     suspend fun deleteAllFromTrash()
+
+    @Query(
+        """
+        DELETE FROM memory_records
+        WHERE (title = '第一次拿到房本' AND content = '今天终于拿到了房本，算是人生阶段性节点。' AND record_time = 1781452800000)
+           OR (title = '上海生活记录' AND content = '最近工作比较忙，但也慢慢稳定了。' AND record_time = 1780848000000)
+        """
+    )
+    suspend fun deleteLegacyStarterTemplates()
 }

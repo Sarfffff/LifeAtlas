@@ -269,6 +269,78 @@ app.post("/api/auth/account/delete", async (request, response) => {
   }
 });
 
+app.post("/api/profile/get", async (request, response) => {
+  try {
+    enforceIpLimit(request, "profile-get", 120, 60 * 60 * 1000);
+    const user = await requireUser(request);
+    response.json({
+      ok: true,
+      displayName: user.profile?.displayName || user.accountName || "旷野小旅人",
+      signature: user.profile?.signature || "记录生活，探索世界",
+      avatarBase64: user.profile?.avatarBase64 || null,
+      updatedAt: user.profile?.updatedAt || user.updatedAt || user.createdAt || null
+    });
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
+app.post("/api/profile/update", async (request, response) => {
+  try {
+    enforceIpLimit(request, "profile-update", 30, 60 * 60 * 1000);
+    const user = await requireUser(request);
+    const displayName = String(request.body?.displayName || "").trim();
+    const signature = String(request.body?.signature || "").trim();
+    const avatarBase64 = request.body?.avatarBase64 == null
+      ? null
+      : String(request.body.avatarBase64).trim();
+    if (displayName.length < 2 || displayName.length > 24) {
+      const error = new Error("名称需要 2-24 个字符");
+      error.status = 400;
+      throw error;
+    }
+    if (signature.length > 80) {
+      const error = new Error("签名不能超过 80 个字符");
+      error.status = 400;
+      throw error;
+    }
+    if (avatarBase64 && avatarBase64.length > 500000) {
+      const error = new Error("头像文件过大，请重新选择");
+      error.status = 413;
+      throw error;
+    }
+    if (avatarBase64 && !/^[A-Za-z0-9+/]+={0,2}$/.test(avatarBase64)) {
+      const error = new Error("头像数据格式无效");
+      error.status = 400;
+      throw error;
+    }
+
+    const updatedUser = await updateStore((store) => {
+      const target = store.users[user.email];
+      if (!target) throw unauthorizedError("账号不存在，请重新登录");
+      target.accountName = displayName;
+      target.profile = {
+        displayName,
+        signature: signature || "记录生活，探索世界",
+        avatarBase64,
+        updatedAt: Date.now()
+      };
+      target.updatedAt = Date.now();
+      return target;
+    });
+    await auditLog(request, "profile_updated", { email: user.email });
+    response.json({
+      ok: true,
+      displayName: updatedUser.profile.displayName,
+      signature: updatedUser.profile.signature,
+      avatarBase64: updatedUser.profile.avatarBase64,
+      updatedAt: updatedUser.profile.updatedAt
+    });
+  } catch (error) {
+    sendError(response, error);
+  }
+});
+
 app.post("/api/auth/email/verification/request", async (request, response) => {
   try {
     enforceIpLimit(request, "email-verification", 12, 60 * 60 * 1000);

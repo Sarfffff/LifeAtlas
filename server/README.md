@@ -16,8 +16,10 @@
 - `POST /api/auth/password/reset/request`：发送密码重置验证码。
 - `POST /api/auth/password/reset/confirm`：验证码确认并重置密码。
 - `POST /api/auth/account/delete`：当前密码确认删除云端账号和轻量备份。
+- `POST /api/profile/get`：读取账号名称、签名和压缩头像。
+- `POST /api/profile/update`：更新账号名称、签名和压缩头像。
 - `POST /api/sync/export/upload`：登录后手动上传轻量云备份。
-- `GET /api/sync/export/latest`：登录后读取最近一次轻量云备份。
+- `POST /api/sync/export/download`：登录后读取最近一次轻量云备份。
 
 ## 本地运行
 

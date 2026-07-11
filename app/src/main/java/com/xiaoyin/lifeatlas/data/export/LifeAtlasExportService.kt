@@ -36,11 +36,13 @@ class LifeAtlasExportService(
     }
 
     suspend fun exportJson(): String {
+        val records = memoryRecordDao.getAllIncludingDeleted().filterNot { it.isLegacyStarterTemplate() }
+        val recordIds = records.mapTo(mutableSetOf()) { it.id }
         val export = LifeAtlasExport(
             schemaVersion = 1,
             app = "LifeAtlas",
             exportedAt = System.currentTimeMillis(),
-            records = memoryRecordDao.getAllIncludingDeleted().map {
+            records = records.map {
                 ExportRecord(
                     id = it.id,
                     title = it.title,
@@ -56,7 +58,7 @@ class LifeAtlasExportService(
                     deletedAt = it.deletedAt
                 )
             },
-            photos = photoDao.getAll().map {
+            photos = photoDao.getAll().filter { it.recordId in recordIds }.map {
                 ExportPhoto(
                     id = it.id,
                     recordId = it.recordId,
@@ -77,13 +79,13 @@ class LifeAtlasExportService(
                     createdAt = it.createdAt
                 )
             },
-            recordTags = tagDao.getAllCrossRefs().map {
+            recordTags = tagDao.getAllCrossRefs().filter { it.recordId in recordIds }.map {
                 ExportRecordTag(
                     recordId = it.recordId,
                     tagId = it.tagId
                 )
             },
-            favoriteRecordIds = favoriteRecordDao.getFavoriteRecordIds()
+            favoriteRecordIds = favoriteRecordDao.getFavoriteRecordIds().filter { it in recordIds }
         )
 
         return json.encodeToString(export)
@@ -163,13 +165,18 @@ class LifeAtlasExportService(
         export: LifeAtlasExport,
         restoredMediaPaths: Map<MediaRestoreKey, String>
     ): LifeAtlasImportResult {
+        val recordsToImport = export.records.filterNot { it.isLegacyStarterTemplate() }
+        val recordIdsToImport = recordsToImport.mapTo(mutableSetOf()) { it.id }
+        val photosToImport = export.photos.filter { it.recordId in recordIdsToImport }
+        val recordTagsToImport = export.recordTags.filter { it.recordId in recordIdsToImport }
         val oldCachePaths = export.records
             .flatMap { record -> photoDao.getByRecordId(record.id) }
             .flatMap { photo -> listOfNotNull(photo.thumbnailPath, photo.compressedPath) }
 
         database.withTransaction {
+            memoryRecordDao.deleteLegacyStarterTemplates()
             memoryRecordDao.insertAll(
-                export.records.map {
+                recordsToImport.map {
                     MemoryRecordEntity(
                         id = it.id,
                         title = it.title,
@@ -204,7 +211,7 @@ class LifeAtlasExportService(
             }
 
             photoDao.insertAll(
-                export.photos.map {
+                photosToImport.map {
                     PhotoEntity(
                         id = it.id,
                         recordId = it.recordId,
@@ -220,7 +227,7 @@ class LifeAtlasExportService(
             )
 
             tagDao.insertCrossRefs(
-                export.recordTags.map {
+                recordTagsToImport.map {
                     MemoryTagCrossRefEntity(
                         recordId = it.recordId,
                         tagId = it.tagId
@@ -230,7 +237,7 @@ class LifeAtlasExportService(
 
             favoriteRecordDao.clearAll()
             export.favoriteRecordIds
-                .filter { favoriteId -> export.records.any { it.id == favoriteId && it.deletedAt == null } }
+                .filter { favoriteId -> recordsToImport.any { it.id == favoriteId && it.deletedAt == null } }
                 .forEach { favoriteId ->
                     favoriteRecordDao.insert(
                         FavoriteRecordEntity(recordId = favoriteId, createdAt = System.currentTimeMillis())
@@ -241,8 +248,8 @@ class LifeAtlasExportService(
         oldCachePaths.forEach(photoCacheManager::deleteCachedPhoto)
 
         return LifeAtlasImportResult(
-            recordCount = export.records.size,
-            photoCount = export.photos.size,
+            recordCount = recordsToImport.size,
+            photoCount = photosToImport.size,
             tagCount = export.tags.size
         )
     }
@@ -398,6 +405,24 @@ private fun ZipOutputStream.putTextEntry(name: String, text: String) {
 
 private fun ZipInputStream.readEntryText(): String {
     return readBytes().toString(Charsets.UTF_8)
+}
+
+private fun MemoryRecordEntity.isLegacyStarterTemplate(): Boolean {
+    return (title == "第一次拿到房本" &&
+        content == "今天终于拿到了房本，算是人生阶段性节点。" &&
+        recordTime == 1781452800000L) ||
+        (title == "上海生活记录" &&
+            content == "最近工作比较忙，但也慢慢稳定了。" &&
+            recordTime == 1780848000000L)
+}
+
+private fun ExportRecord.isLegacyStarterTemplate(): Boolean {
+    return (title == "第一次拿到房本" &&
+        content == "今天终于拿到了房本，算是人生阶段性节点。" &&
+        recordTime == 1781452800000L) ||
+        (title == "上海生活记录" &&
+            content == "最近工作比较忙，但也慢慢稳定了。" &&
+            recordTime == 1780848000000L)
 }
 
 data class LifeAtlasImportResult(

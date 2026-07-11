@@ -19,6 +19,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -110,6 +114,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
             }
         }
+        viewModelScope.launch {
+            authRepository.session
+                .map { session -> session.isLoggedIn to session.email }
+                .distinctUntilChanged()
+                .collectLatest { (isLoggedIn, _) ->
+                    if (isLoggedIn && authRepository.isBackendConfigured()) {
+                        syncRemoteProfileToLocal()
+                    }
+                }
+        }
     }
 
     fun onLocalFirstChange(enabled: Boolean) {
@@ -120,18 +134,56 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun updateProfile(displayName: String, signature: String, avatarUri: String?) {
         viewModelScope.launch {
-            runCatching {
+            val localResult = runCatching {
                 val storedAvatarUri = withContext(Dispatchers.IO) {
                     avatarStorage.importAvatar(avatarUri, _uiState.value.profile.avatarUri)
                 }
                 settingsRepository.updateProfile(displayName, signature, storedAvatarUri)
-            }.onSuccess {
-                _uiState.update { it.copy(message = SettingsMessage("资料已更新", SettingsMessageType.Success)) }
-            }.onFailure { error ->
+                storedAvatarUri
+            }
+            localResult.onFailure { error ->
                 _uiState.update {
                     it.copy(message = SettingsMessage(error.message ?: "头像保存失败", SettingsMessageType.Error))
                 }
+                return@launch
             }
+
+            val storedAvatarUri = localResult.getOrNull()
+            val session = authRepository.session.first()
+            val remoteError = if (session.isLoggedIn && authRepository.isBackendConfigured()) {
+                runCatching {
+                    val avatarBase64 = withContext(Dispatchers.IO) {
+                        avatarStorage.readAvatarBase64(storedAvatarUri)
+                    }
+                    authRepository.updateRemoteProfile(displayName, signature, avatarBase64)
+                }.exceptionOrNull()
+            } else {
+                null
+            }
+            _uiState.update {
+                it.copy(
+                    message = if (remoteError == null) {
+                        SettingsMessage("资料已更新并保存到账号", SettingsMessageType.Success)
+                    } else {
+                        SettingsMessage("资料已保存在本机，云端同步失败：${remoteError.message ?: "请稍后重试"}", SettingsMessageType.Info)
+                    }
+                )
+            }
+        }
+    }
+
+    private suspend fun syncRemoteProfileToLocal() {
+        runCatching {
+            val remoteProfile = authRepository.getRemoteProfile()
+            val localProfile = settingsRepository.userProfile.first()
+            val avatarUri = withContext(Dispatchers.IO) {
+                avatarStorage.importRemoteAvatar(remoteProfile.avatarBase64, localProfile.avatarUri)
+            }
+            settingsRepository.updateProfile(
+                remoteProfile.displayName,
+                remoteProfile.signature,
+                avatarUri
+            )
         }
     }
 

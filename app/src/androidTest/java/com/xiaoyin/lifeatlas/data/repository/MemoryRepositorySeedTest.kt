@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.xiaoyin.lifeatlas.core.database.AppDatabase
 import com.xiaoyin.lifeatlas.core.media.PhotoCacheManager
+import com.xiaoyin.lifeatlas.data.entity.MemoryRecordEntity
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -44,19 +45,39 @@ class MemoryRepositorySeedTest {
     }
 
     @Test
-    fun deletedStarterRecords_doNotReappearWhenSeedingRunsAgain() = runBlocking {
+    fun legacyStarterRecords_areRemovedAndNeverRecreated() = runBlocking {
+        val now = System.currentTimeMillis()
+        database.memoryRecordDao().insertAll(
+            listOf(
+                MemoryRecordEntity(
+                    title = "第一次拿到房本",
+                    content = "今天终于拿到了房本，算是人生阶段性节点。",
+                    recordTime = 1781452800000,
+                    latitude = 30.5,
+                    longitude = 114.3,
+                    locationName = "武汉市洪山区",
+                    mood = "激动",
+                    importance = 5,
+                    createdAt = now,
+                    updatedAt = now
+                ),
+                MemoryRecordEntity(
+                    title = "上海生活记录",
+                    content = "最近工作比较忙，但也慢慢稳定了。",
+                    recordTime = 1780848000000,
+                    latitude = 31.2,
+                    longitude = 121.4,
+                    locationName = "上海市徐汇区",
+                    mood = "平静",
+                    importance = 3,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+        )
+
         repository.seedIfEmpty()
-        val starterRecords = database.memoryRecordDao().getAllIncludingDeleted()
-        assertEquals(2, starterRecords.size)
-
-        starterRecords.forEach { repository.deleteRecord(it.id) }
-        assertEquals(0, database.memoryRecordDao().count())
-
-        repository.seedIfEmpty()
-        assertEquals(0, database.memoryRecordDao().count())
-        assertEquals(2, database.memoryRecordDao().countIncludingDeleted())
-
-        starterRecords.forEach { repository.permanentlyDeleteRecord(it.id) }
+        assertEquals(0, database.memoryRecordDao().countIncludingDeleted())
         repository.seedIfEmpty()
         assertEquals(0, database.memoryRecordDao().countIncludingDeleted())
     }

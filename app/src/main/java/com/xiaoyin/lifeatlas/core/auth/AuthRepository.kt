@@ -277,6 +277,27 @@ class AuthRepository(context: Context) {
         }
     }
 
+    suspend fun getRemoteProfile(): AuthApiProfile {
+        require(isBackendConfigured()) { "账号资料需要先启用国内后端账号服务" }
+        return withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
+            withAuthenticatedBackendRequest { client, token -> client.getProfile(token) }
+        }
+    }
+
+    suspend fun updateRemoteProfile(
+        displayName: String,
+        signature: String,
+        avatarBase64: String?
+    ): AuthApiProfile {
+        require(displayName.trim().length in 2..24) { "名称需要 2-24 个字符" }
+        require(signature.trim().length <= 80) { "签名不能超过 80 个字符" }
+        return withTimeout(BACKEND_REQUEST_TIMEOUT_MS) {
+            withAuthenticatedBackendRequest { client, token ->
+                client.updateProfile(token, displayName.trim(), signature.trim(), avatarBase64)
+            }
+        }
+    }
+
     fun authModeLabel(): String = when {
         isBackendConfigured() -> "国内后端账号"
         shouldUseFirebase() -> "Firebase 邮箱账号"

@@ -154,6 +154,30 @@ class AuthApiClient(
         )
     }
 
+    suspend fun getProfile(accessToken: String): AuthApiProfile {
+        return post(
+            path = "/api/profile/get",
+            bodyText = "{}",
+            bearerToken = accessToken
+        )
+    }
+
+    suspend fun updateProfile(
+        accessToken: String,
+        displayName: String,
+        signature: String,
+        avatarBase64: String?
+    ): AuthApiProfile {
+        return post(
+            path = "/api/profile/update",
+            bodyText = json.encodeToString(
+                AuthApiProfileUpdateRequest.serializer(),
+                AuthApiProfileUpdateRequest(displayName, signature, avatarBase64)
+            ),
+            bearerToken = accessToken
+        )
+    }
+
     private suspend inline fun <reified T> post(
         path: String,
         bodyText: String,
@@ -264,8 +288,24 @@ data class AuthApiCloudBackupPayload(
 )
 
 @Serializable
+data class AuthApiProfile(
+    val ok: Boolean = true,
+    val displayName: String,
+    val signature: String,
+    val avatarBase64: String? = null,
+    val updatedAt: Long? = null
+)
+
+@Serializable
 private data class AuthApiCloudBackupUploadRequest(
     val data: String
+)
+
+@Serializable
+private data class AuthApiProfileUpdateRequest(
+    val displayName: String,
+    val signature: String,
+    val avatarBase64: String?
 )
 
 @Serializable
