@@ -2,6 +2,7 @@ package com.xiaoyin.lifeatlas.feature.record
 
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +16,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -28,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +51,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaoyin.lifeatlas.core.model.MemoryRecord
 import com.xiaoyin.lifeatlas.core.model.Photo
@@ -280,6 +287,8 @@ private fun MemoryRecord.toShareText(): String {
 
 @Composable
 private fun DetailPhotoSection(photos: List<Photo>, onEditPhotos: () -> Unit) {
+    var selectedPhotoIndex by remember { mutableStateOf<Int?>(null) }
+
     Card(
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = WildernessPaper)
@@ -327,9 +336,12 @@ private fun DetailPhotoSection(photos: List<Photo>, onEditPhotos: () -> Unit) {
                 }
             } else {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(photos) { photo ->
+                    items(photos.size) { index ->
+                        val photo = photos[index]
                         Card(
-                            modifier = Modifier.width(228.dp),
+                            modifier = Modifier
+                                .width(228.dp)
+                                .clickable { selectedPhotoIndex = index },
                             shape = RoundedCornerShape(20.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
                         ) {
@@ -338,6 +350,73 @@ private fun DetailPhotoSection(photos: List<Photo>, onEditPhotos: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+
+    selectedPhotoIndex?.let { index ->
+        PhotoViewerDialog(
+            photos = photos,
+            initialIndex = index,
+            onDismiss = { selectedPhotoIndex = null }
+        )
+    }
+}
+
+@Composable
+private fun PhotoViewerDialog(
+    photos: List<Photo>,
+    initialIndex: Int,
+    onDismiss: () -> Unit
+) {
+    val pagerState = rememberPagerState(
+        initialPage = initialIndex.coerceIn(0, photos.lastIndex),
+        pageCount = { photos.size }
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(WildernessTeal)
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
+            ) { page ->
+                SubcomposeAsyncImage(
+                    model = photos[page].compressedPath ?: photos[page].originalUri,
+                    contentDescription = "照片 ${page + 1}",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                    loading = { PhotoPlaceholder("正在加载照片") },
+                    error = { PhotoPlaceholder("照片无法显示") }
+                )
+            }
+
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(18.dp)
+                    .background(WildernessPaper.copy(alpha = 0.9f), RoundedCornerShape(16.dp))
+            ) {
+                androidx.compose.material3.Icon(Icons.Outlined.Close, contentDescription = "关闭", tint = WildernessTeal)
+            }
+
+            Text(
+                text = "${pagerState.currentPage + 1} / ${photos.size}",
+                color = WildernessTeal,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 30.dp)
+                    .background(WildernessPaper.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
         }
     }
 }

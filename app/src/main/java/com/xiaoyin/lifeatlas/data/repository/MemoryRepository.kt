@@ -56,6 +56,10 @@ class MemoryRepository(
         }
     }
 
+    fun observeAllPhotos(): Flow<List<Photo>> {
+        return photoDao.observeAll().map { photos -> photos.map { it.toModel() } }
+    }
+
     fun observeFirstPhotosByRecord(): Flow<Map<Long, Photo>> {
         return photoDao.observeFirstPhotosByRecord().map { photos ->
             photos.associate { it.recordId to it.toModel() }

@@ -66,6 +66,10 @@ sealed class LifeAtlasDestination(
         const val route = "favorites"
     }
 
+    data object AnnualReview {
+        const val route = "annual_review"
+    }
+
     data object CityDetail {
         const val route = "city_detail/{city}"
         const val cityArg = "city"

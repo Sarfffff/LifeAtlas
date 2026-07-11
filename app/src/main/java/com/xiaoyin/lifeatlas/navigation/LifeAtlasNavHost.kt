@@ -48,6 +48,7 @@ import com.xiaoyin.lifeatlas.feature.onboarding.OnboardingRoute
 import com.xiaoyin.lifeatlas.feature.record.AddRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.EditRecordRoute
 import com.xiaoyin.lifeatlas.feature.record.RecordDetailRoute
+import com.xiaoyin.lifeatlas.feature.review.AnnualReviewRoute
 import com.xiaoyin.lifeatlas.feature.settings.SettingsRoute
 import com.xiaoyin.lifeatlas.feature.settings.TagManagementRoute
 import com.xiaoyin.lifeatlas.feature.timeline.TimelineRoute
@@ -191,6 +192,9 @@ fun LifeAtlasNavHost() {
                     },
                     onFavoritesClick = {
                         navController.navigate(LifeAtlasDestination.Favorites.route)
+                    },
+                    onAnnualReviewClick = {
+                        navController.navigate(LifeAtlasDestination.AnnualReview.route)
                     }
                 )
             }
@@ -239,6 +243,14 @@ fun LifeAtlasNavHost() {
             }
             composable(LifeAtlasDestination.Favorites.route) {
                 FavoriteCenterRoute(
+                    onBack = { navController.popBackStack() },
+                    onRecordClick = { recordId ->
+                        navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))
+                    }
+                )
+            }
+            composable(LifeAtlasDestination.AnnualReview.route) {
+                AnnualReviewRoute(
                     onBack = { navController.popBackStack() },
                     onRecordClick = { recordId ->
                         navController.navigate(LifeAtlasDestination.RecordDetail.createRoute(recordId))

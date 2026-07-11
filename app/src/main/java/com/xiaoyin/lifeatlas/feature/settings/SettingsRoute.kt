@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CloudUpload
@@ -86,6 +87,7 @@ fun SettingsRoute(
     onAccountClick: () -> Unit,
     onTagManagementClick: () -> Unit,
     onFavoritesClick: () -> Unit,
+    onAnnualReviewClick: () -> Unit,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -154,6 +156,13 @@ fun SettingsRoute(
         }
 
         SettingsSection(title = "地图与记录") {
+            SettingsRow(
+                icon = Icons.Outlined.AutoStories,
+                title = "年度回顾",
+                subtitle = "按年份回看记忆、照片、地点和心情",
+                onClick = onAnnualReviewClick
+            )
+            SettingsDivider()
             SettingsRow(
                 icon = Icons.Outlined.LocationOn,
                 title = "地图配置",
@@ -383,6 +392,29 @@ fun SettingsRoute(
             dismissButton = {
                 TextButton(onClick = viewModel::cancelImport) {
                     Text("取消")
+                }
+            }
+        )
+    }
+
+    uiState.operationResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissOperationResult,
+            title = { Text(result.title, fontWeight = FontWeight.Black, color = WildernessTeal) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(result.summary, color = WildernessMuted)
+                    result.details.forEach { detail ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                            Text("•", color = WildernessTeal, fontWeight = FontWeight.Black)
+                            Text(detail, color = WildernessTeal.copy(alpha = 0.82f))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissOperationResult) {
+                    Text("完成")
                 }
             }
         )

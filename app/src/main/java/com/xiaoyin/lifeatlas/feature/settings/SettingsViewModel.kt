@@ -42,7 +42,14 @@ data class SettingsUiState(
     val pendingBackupZipUri: Uri? = null,
     val pendingImportJson: String? = null,
     val importPreview: LifeAtlasImportPreview? = null,
+    val operationResult: BackupOperationResult? = null,
     val message: SettingsMessage? = null
+)
+
+data class BackupOperationResult(
+    val title: String,
+    val summary: String,
+    val details: List<String>
 )
 
 data class SettingsMessage(
@@ -178,6 +185,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isRestoringCloudBackup = false,
+                        operationResult = BackupOperationResult(
+                            title = "云端恢复完成",
+                            summary = "结构化记忆已经恢复到本机",
+                            details = listOf(
+                                "记录 ${result.recordCount} 条",
+                                "照片引用 ${result.photoCount} 条",
+                                "标签 ${result.tagCount} 个",
+                                "照片原文件未包含，请保留完整备份包"
+                            )
+                        ),
                         message = SettingsMessage(
                             "云端恢复完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签。照片原文件仍需使用完整备份包恢复。",
                             SettingsMessageType.Success
@@ -257,6 +274,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isExportingBackup = false,
+                        operationResult = BackupOperationResult(
+                            title = "完整备份已导出",
+                            summary = "备份包可以用于换手机或重装后恢复",
+                            details = listOf(
+                                "记录 ${result.recordCount} 条",
+                                "照片引用 ${result.photoCount} 条",
+                                "媒体缓存 ${result.mediaFileCount} 个"
+                            )
+                        ),
                         message = SettingsMessage(
                             text = "备份包导出完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.mediaFileCount} 个媒体缓存文件",
                             type = SettingsMessageType.Success
@@ -346,6 +372,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     _uiState.update {
                         it.copy(
                             isImporting = false,
+                            operationResult = BackupOperationResult(
+                                title = "完整备份已恢复",
+                                summary = "记录和可用的照片缓存已经写回本机",
+                                details = listOf(
+                                    "记录 ${result.recordCount} 条",
+                                    "照片引用 ${result.photoCount} 条",
+                                    "标签 ${result.tagCount} 个",
+                                    "恢复媒体缓存 ${result.restoredMediaFileCount} 个"
+                                )
+                            ),
                             message = SettingsMessage(
                                 text = "备份包导入完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签，恢复 ${result.restoredMediaFileCount} 个媒体缓存文件",
                                 type = SettingsMessageType.Success
@@ -378,6 +414,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isImporting = false,
+                        operationResult = BackupOperationResult(
+                            title = "JSON 数据已恢复",
+                            summary = "结构化记录已经写回本机",
+                            details = listOf(
+                                "记录 ${result.recordCount} 条",
+                                "照片引用 ${result.photoCount} 条",
+                                "标签 ${result.tagCount} 个",
+                                "JSON 不包含照片缓存文件"
+                            )
+                        ),
                         message = SettingsMessage(
                             text = "导入完成：${result.recordCount} 条记录，${result.photoCount} 张照片引用，${result.tagCount} 个标签",
                             type = SettingsMessageType.Success
@@ -399,6 +445,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 message = null
             )
         }
+    }
+
+    fun dismissOperationResult() {
+        _uiState.update { it.copy(operationResult = null) }
     }
 
     private fun readTextFromUri(uri: Uri): String {

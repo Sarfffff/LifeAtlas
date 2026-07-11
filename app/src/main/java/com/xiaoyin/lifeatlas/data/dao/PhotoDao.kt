@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PhotoDao {
+    @Query("SELECT * FROM photos ORDER BY record_id ASC, id ASC")
+    fun observeAll(): Flow<List<PhotoEntity>>
+
     @Query("SELECT * FROM photos WHERE record_id = :recordId ORDER BY id ASC")
     fun observeByRecordId(recordId: Long): Flow<List<PhotoEntity>>
 
